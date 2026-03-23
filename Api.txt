@@ -1,0 +1,1840 @@
+MCSR Ranked Rest API Documentation
+All endpoints have a ratelimit of 500 requests per 10 minutes unless otherwise specified.
+If you want to use an API Key with an expanded ratelimit, please make a #ticket in our Discord Server.
+Endpoints
+https://api.mcsrranked.com/
+https://mcsrranked.com/api/
+You can use both, but we recommend using the first one.
+Authentication
+Many of the endpoints do not require authentication. To get a key for those that do, open an MCSR Ranked instance, go to Profile → Settings → Generate & Copy API Private Key.
+
+That key can then be passed in a Private-Key header.
+
+200   Success Response
+JSON response when an API request is successfully processed.
+Response Type
+{
+    status: string,
+    data: object
+}
+Sample Response
+400   Data Not Found
+JSON response when there's no data. However, as an exception, array type returns an empty array instead of this error.
+Response Type
+{
+    status: string,
+    data: null
+}
+Sample Response
+401   Wrong Parameters
+JSON response when incorrect parameters are provided. The data of the API response will explain what went wrong.
+Response Type
+{
+    status: string,
+    data: string
+}
+Sample Response
+429   Too Many Requests
+JSON response when an API request exceeds the ratelimit.
+Response Type
+{
+    status: string,
+    data: string
+}
+Sample Response
+Class   UserProfile
+Parameter	Type	Description
+uuid	String	User's UUID
+nickname	String	User's nickname
+roleType	Integer	User's role type
+eloRate	Integer?	User's Elo rate. It is null if the user hasn't finished placement matches.
+eloRank	Integer?	User's Elo rank
+country	String?	User's country code in lowercased ISO 3166-1 alpha-2 format.
+Class   Achievement
+Parameter	Type	Description
+id	String	Achievement Identifier
+date	Date	Timestamp of when the achievement was earned
+data	String[]	Additional data array
+level	Integer	Level of achievement
+value	Integer?	Contains the current player's progression of the achievement. It is null if the achievement is not a leveling one.
+goal	Integer?	Next level goal of the achievement. It is null if the achievement is at max level or not a leveling one.
+Class   MatchInfo
+Advanced parameters are only available with /matches/{match_id} endpoint.
+Parameter	Type	Description
+id	String	
+type	MatchType	
+season	Integer	
+category	String?	Match completions category. Default is ANY
+date	Date	
+players	UserProfile[]	
+spectators	UserProfile[]	
+seed	MatchSeed?	Seed ID if it's a ranked filtered seed. This is not the seed number. It is null if the seed is not filtered.
+result.uuid	String?	Winner's UUID. It is null if the match was a draw.
+result.time	Time	
+forfeited	Boolean	Whether the match has no completions
+decayed	Boolean	Whether the match has decayed
+rank.season	Integer?	Record rank of the match's season
+rank.allTime	Integer?	Record rank of all-time
+changes[].uuid	String	UUID of player
+changes[].change	Integer?	Amount of changed Elo rate. It is null if the match is a placement.
+changes[].eloRate	Integer?	Elo rate of the player. It is null if the match is a placement.
+tag	String?	Special tag of this match. Used to get matches by tag.
+beginner	Boolean	Whether beginner mode is enabled in the match.
+vod[].uuid	String	UUID of VOD owner. Only players with public stream activated will be included.
+vod[].url	String	VOD URL of this match
+vod[].startsAt	Date	VOD start date. You can get a timestamp with {date} - {vod[].startsAt}
+completions[].uuid	String	(Advanced) Player uuid of completion
+completions[].time	Time	(Advanced) Match time of completion
+timelines[].uuid	String	(Advanced) Player uuid of timeline
+timelines[].time	Time	(Advanced) Match time of timeline
+timelines[].type	String	(Advanced) Identifier of timeline
+replayExist	Boolean	(Advanced) Whether the match replay exists in the server
+Class   MatchSeed
+Parameter	Type	Description
+id	String?	Seed id if it's a ranked filtered seed. This is not the seed number. It is null if the seed is not filtered.
+overworld	String?	Overworld structure type of the seed. It is null if the seed is not filtered.
+nether	String?	Bastion remnants type of the seed. It is null if the seed is not filtered.
+endTowers	Integer[]	The zero related tower heights of in The End dimension. It is an empty array if the seed is not filtered.
+variations	String[]	Noticeable variations of the seed. It is an empty array if the seed is not filtered.
+String   UserIdentifier
+Identifier used when getting user information. You must use one of the formats below.
+Type	Description	Example
+UUID	UUID of User. You can also use it with dashes (-).	bbc886da1b024739b4b80f1542e9f61d
+Nickname	Nickname of User. It is not case-sensitive.	RED_LIME
+Discord ID	Linked Discord ID (Snowflake) of User. Must be discord.[ID] format.	discord.338669823167037440
+Integer   MatchType
+Value	Description
+1	Casual Match
+2	Ranked Match
+3	Private Room Match
+4	Event Mode Match
+Integer   Date
+Displays a specific date as an epoch time (timestamp) in seconds. (NOT milliseconds!)
+Integer   Time
+Displays a specific duration in milliseconds.
+Get User Data
+Returns {identifier}'s entire profile data.
+GET   https://api.mcsrranked.com/users/{identifier}
+Parameter	Type	Required?	Description
+{identifier}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+season	Integer	false	Specific season match for statistics (default: current season number)
+Response Type
+Parameter	Type	Description
+uuid	String	UUID (without Dashes)
+nickname	String	
+roleType	Integer	
+eloRate	Integer?	Elo rate of current season, if the user hasn't finished placement matches it is null
+eloRank	Integer?	Current season rank
+country	String?	Country code in lowercased ISO 3166-1 alpha-2 format
+achievements.display	Achievement[]	Achievements displayed in-game
+achievements.total	Achievement[]	Achievements not displayed in-game
+timestamp.firstOnline	Date	Date of user's first connection
+timestamp.lastOnline	Date	Date of user's last connection
+timestamp.lastRanked	Date	Date of user's last ranked match
+timestamp.nextDecay	Date?	Date of user's next decay time
+statistics.season.[key].[ranked | casual]	Integer?	Season statistics for specific match types (ranked or casual)
+statistics.total.[key].[ranked | casual]	Integer?	All-time statistics for specific match types (ranked or casual)
+connections.[key].id	Connection?	Identifier of user's third party connections like Twitch, Discord, etc.
+connections.[key].name	Connection?	Display name of user's third party connections like Twitch, Discord, etc.
+seasonResult	Object?	User's Elo data of season
+seasonResult.last.eloRate	Integer	Current Elo rate this season
+seasonResult.last.eloRank	Integer?	Current Elo rank this season
+seasonResult.last.phasePoint	Integer	Current phase points this season
+seasonResult.highest	Integer	Highest Elo rate this season
+seasonResult.lowest	Integer	Lowest Elo rate this season
+seasonResult.phases[].phase	Integer	Phase number
+seasonResult.phases[].eloRate	Integer	Elo rate at phase end
+seasonResult.phases[].eloRank	Integer	Elo rank at phase end
+seasonResult.phases[].point	Integer	Phase reward points
+weeklyRaces	Object[]	User's results of all weekly races
+weeklyRaces[].id	Integer	ID of the weekly race
+weeklyRaces[].time	Time	Final time of the weekly race
+weeklyRaces[].rank	Integer	Rank in the weekly race
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+        "nickname": "doogile",
+        "roleType": 3,
+        "eloRate": 2243,
+        "eloRank": 27,
+        "achievements": {
+            "display": [
+                {
+                    "id": "playoffsResult",
+                    "date": 1688539438,
+                    "data": [
+                        "1"
+                    ],
+                    "level": 2,
+                    "value": null,
+                    "goal": null
+                },
+                {
+                    "id": "playoffsResult",
+                    "date": 1726924395,
+                    "data": [
+                        "5"
+                    ],
+                    "level": 1,
+                    "value": null,
+                    "goal": null
+                },
+                {
+                    "id": "playoffsResult",
+                    "date": 1738934412,
+                    "data": [
+                        "6"
+                    ],
+                    "level": 2,
+                    "value": null,
+                    "goal": null
+                }
+            ],
+            "total": [
+                {
+                    "id": "seasonResult",
+                    "date": 1767312115,
+                    "data": [
+                        "9",
+                        "3"
+                    ],
+                    "level": 2,
+                    "value": null,
+                    "goal": null
+                },
+                {
+                    "id": "weeklyRace",
+                    "date": 1759709421,
+                    "data": [
+                        "3"
+                    ],
+                    "level": 1,
+                    "value": null,
+                    "goal": null
+                },
+                {
+                    "id": "foodless",
+                    "date": 1757553338,
+                    "data": [],
+                    "level": 1,
+                    "value": null,
+                    "goal": null
+                }
+            ]
+        },
+        "timestamp": {
+            "firstOnline": 1676212748,
+            "lastOnline": 1774225802,
+            "lastRanked": 1774049539,
+            "nextDecay": 1774697539
+        },
+        "statistics": {
+            "season": {
+                "bestTime": {
+                    "ranked": 392365,
+                    "casual": null
+                },
+                "highestWinStreak": {
+                    "ranked": 9,
+                    "casual": 0
+                },
+                "currentWinStreak": {
+                    "ranked": 0,
+                    "casual": 0
+                },
+                "playedMatches": {
+                    "ranked": 346,
+                    "casual": 0
+                },
+                "playtime": {
+                    "ranked": 188773924,
+                    "casual": 0
+                },
+                "completionTime": {
+                    "ranked": 112471989,
+                    "casual": 0
+                },
+                "forfeits": {
+                    "ranked": 3,
+                    "casual": 0
+                },
+                "completions": {
+                    "ranked": 208,
+                    "casual": 0
+                },
+                "wins": {
+                    "ranked": 220,
+                    "casual": 0
+                },
+                "loses": {
+                    "ranked": 113,
+                    "casual": 0
+                }
+            },
+            "total": {
+                "bestTime": {
+                    "ranked": 392365,
+                    "casual": 399099
+                },
+                "highestWinStreak": {
+                    "ranked": 29,
+                    "casual": 17
+                },
+                "currentWinStreak": {
+                    "ranked": 0,
+                    "casual": 0
+                },
+                "playedMatches": {
+                    "ranked": 4335,
+                    "casual": 665
+                },
+                "playtime": {
+                    "ranked": 2587443823,
+                    "casual": 355932684
+                },
+                "forfeits": {
+                    "ranked": 36,
+                    "casual": 119
+                },
+                "completions": {
+                    "ranked": 2481,
+                    "casual": 247
+                },
+                "wins": {
+                    "ranked": 3009,
+                    "casual": 372
+                },
+                "loses": {
+                    "ranked": 1195,
+                    "casual": 244
+                },
+                "completionTime": {
+                    "ranked": 1543434557,
+                    "casual": 153011819
+                }
+            }
+        },
+        "connections": {
+            "discord": {
+                "id": "928503823662727178",
+                "name": "doogile"
+            },
+            "twitch": {
+                "id": "doogile",
+                "name": "doogile"
+            },
+            "youtube": {
+                "id": "UCWuRJD4a2ryJG-RZ36_Wewg",
+                "name": "doog"
+            }
+        },
+        "weeklyRaces": [
+            {
+                "id": 1,
+                "time": 237604,
+                "rank": 1
+            },
+            {
+                "id": 2,
+                "time": 318550,
+                "rank": 18
+            },
+            {
+                "id": 3,
+                "time": 621031,
+                "rank": 44
+            }
+        ],
+        "country": "us",
+        "seasonResult": {
+            "last": {
+                "eloRate": 2243,
+                "eloRank": 27,
+                "phasePoint": 110
+            },
+            "highest": 2462,
+            "lowest": 1648,
+            "phases": [
+                {
+                    "phase": 1,
+                    "eloRate": 2170,
+                    "eloRank": 4,
+                    "point": 42
+                },
+                {
+                    "phase": 2,
+                    "eloRate": 2329,
+                    "eloRank": 5,
+                    "point": 48
+                }
+            ]
+        }
+    }
+}
+Show Full Response
+Get User Matches
+Returns {identifier}'s recent matches
+GET   https://api.mcsrranked.com/users/{identifier}/matches
+Parameter	Type	Required?	Description
+{identifier}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+before	Integer	false	Match list cursor, it must be match ID. Get matches before this ID.
+after	Integer	false	Match list cursor, it must be match ID. Get matches after this ID.
+sort	String	false	Match list sort option. It must be one of: newest, oldest, fastest, slowest (default: newest)
+count	Integer	false	Number of matches in the response, it must be between 1 and 100 (default: 20)
+type	MatchType?	false	Filter by match type (default: null)
+season	Integer	false	Filter by season (default: current season number)
+excludedecay	Boolean	false	Whether to exclude decayed matches (default: false)
+Response Type
+Parameter	Type	Description
+Array[]	MatchInfo[]	
+Show Sample Response
+{
+    "status": "success",
+    "data": [
+        {
+            "id": 8402789,
+            "type": 3,
+            "seed": {
+                "id": "mamhv1lzjiy2sl9n",
+                "overworld": "VILLAGE",
+                "nether": "BRIDGE",
+                "endTowers": [
+                    91,
+                    100,
+                    85
+                ],
+                "variations": [
+                    "biome:structure:plains",
+                    "biome:structure:plains",
+                    "bastion:triple:1"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                    "nickname": "doogile",
+                    "roleType": 3,
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "country": "us"
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 489106
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "vod": [],
+            "changes": [],
+            "beginner": false,
+            "botSource": null,
+            "season": 10,
+            "date": 1774239529,
+            "seedType": "VILLAGE",
+            "bastionType": "BRIDGE",
+            "tag": null
+        },
+        {
+            "id": 8401644,
+            "type": 3,
+            "seed": {
+                "id": "mamhmb976bp3w5qr",
+                "overworld": "VILLAGE",
+                "nether": "BRIDGE",
+                "endTowers": [
+                    94,
+                    76,
+                    100
+                ],
+                "variations": [
+                    "chest:structure:obsidian",
+                    "biome:structure:desert",
+                    "chest:structure:obsidian"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                    "nickname": "doogile",
+                    "roleType": 3,
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "country": "us"
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 575214
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "vod": [],
+            "changes": [],
+            "beginner": false,
+            "botSource": null,
+            "season": 10,
+            "date": 1774236906,
+            "seedType": "VILLAGE",
+            "bastionType": "BRIDGE",
+            "tag": null
+        },
+        {
+            "id": 8401116,
+            "type": 3,
+            "seed": {
+                "id": "mamhurwmdkl3lbwi",
+                "overworld": "VILLAGE",
+                "nether": "BRIDGE",
+                "endTowers": [
+                    100,
+                    88,
+                    103
+                ],
+                "variations": [
+                    "biome:structure:plains",
+                    "biome:structure:plains",
+                    "bastion:triple:2"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                    "nickname": "doogile",
+                    "roleType": 3,
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "country": "us"
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 476861
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "vod": [],
+            "changes": [],
+            "beginner": false,
+            "botSource": null,
+            "season": 10,
+            "date": 1774235779,
+            "seedType": "VILLAGE",
+            "bastionType": "BRIDGE",
+            "tag": null
+        }
+    ]
+}
+Show Full Response
+Get Versus Stats
+Returns the match stats between {identifier1} and {identifier2} for ranked/casual matches. If they haven't played each other, a 400 error will be returned.
+GET   https://api.mcsrranked.com/users/{identifier1}/versus/{identifier2}
+Parameter	Type	Required?	Description
+{identifier1}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+{identifier2}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+season	Integer	false	Specific season match (default: current season number)
+Response Type
+Parameter	Type	Description
+players	UserProfile[]	
+results.[ranked | casual].[key]	Integer	Mapping of wins per player, with their UUID as key. total key returns the sum of matches.
+changes.[key]	Integer	Total Elo rate changes between players
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "players": [
+            {
+                "uuid": "17e787d1d6374f818b294f2319db370d",
+                "nickname": "silverrruns",
+                "roleType": 2,
+                "eloRate": 2296,
+                "eloRank": 22,
+                "country": "ca"
+            },
+            {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "nickname": "doogile",
+                "roleType": 3,
+                "eloRate": 2243,
+                "eloRank": 27,
+                "country": "us"
+            }
+        ],
+        "results": {
+            "ranked": {
+                "total": 22,
+                "17e787d1d6374f818b294f2319db370d": 10,
+                "3c8757790ab0400b8b9e3936e0dd535b": 12
+            },
+            "casual": {
+                "total": 43,
+                "17e787d1d6374f818b294f2319db370d": 15,
+                "3c8757790ab0400b8b9e3936e0dd535b": 24
+            }
+        },
+        "changes": {
+            "17e787d1d6374f818b294f2319db370d": -23,
+            "3c8757790ab0400b8b9e3936e0dd535b": 23
+        }
+    }
+}
+Show Full Response
+Get Versus Matches
+Returns the recent matches between {identifier1} and {identifier2}.
+GET   https://api.mcsrranked.com/users/{identifier1}/versus/{identifier2}/matches
+Parameter	Type	Required?	Description
+{identifier1}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+{identifier2}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+before	Integer	false	Match list cursor, it must be match ID. Get matches before this ID.
+after	Integer	false	Match list cursor, it must be match ID. Get matches after this ID.
+count	Integer	false	Number of matches in the response, it must be between 1 and 100 (default: 20)
+type	MatchType?	false	Filter by match type (default: null)
+season	Integer	false	Filter by season (default: current season number)
+Response Type
+Parameter	Type	Description
+Array[]	MatchInfo[]	
+Show Sample Response
+{
+    "status": "success",
+    "data": [
+        {
+            "id": 1970518,
+            "type": 1,
+            "seed": {
+                "id": "m7236j12gt3r0z4w",
+                "overworld": "BURIED_TREASURE",
+                "nether": "HOUSING",
+                "endTowers": [
+                    76,
+                    88,
+                    97
+                ],
+                "variations": [
+                    "biome:structure:ocean",
+                    "biome:structure:ocean",
+                    "bastion:triple:1"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "17e787d1d6374f818b294f2319db370d",
+                    "nickname": "silverrruns",
+                    "roleType": 2,
+                    "eloRate": 2296,
+                    "eloRank": 22,
+                    "country": "ca"
+                },
+                {
+                    "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                    "nickname": "doogile",
+                    "roleType": 3,
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "country": "us"
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 532309
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "changes": [],
+            "season": 7,
+            "date": 1745189617,
+            "botSource": null,
+            "beginner": false,
+            "seedType": "BURIED_TREASURE",
+            "bastionType": "HOUSING",
+            "tag": null
+        },
+        {
+            "id": 1970467,
+            "type": 1,
+            "seed": {
+                "id": "m722wixm79dwodqh",
+                "overworld": "VILLAGE",
+                "nether": "HOUSING",
+                "endTowers": [
+                    79,
+                    97,
+                    91
+                ],
+                "variations": [
+                    "biome:structure:desert",
+                    "biome:structure:desert",
+                    "bastion:triple:1"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "17e787d1d6374f818b294f2319db370d",
+                    "nickname": "silverrruns",
+                    "roleType": 2,
+                    "eloRate": 2296,
+                    "eloRank": 22,
+                    "country": "ca"
+                },
+                {
+                    "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                    "nickname": "doogile",
+                    "roleType": 3,
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "country": "us"
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 612125
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "changes": [],
+            "season": 7,
+            "date": 1745189045,
+            "botSource": null,
+            "beginner": false,
+            "seedType": "VILLAGE",
+            "bastionType": "HOUSING",
+            "tag": null
+        },
+        {
+            "id": 1962975,
+            "type": 3,
+            "seed": {
+                "id": "m722yea1znmf48eg",
+                "overworld": "VILLAGE",
+                "nether": "STABLES",
+                "endTowers": [
+                    100,
+                    103,
+                    97
+                ],
+                "variations": [
+                    "biome:structure:plains",
+                    "biome:structure:plains",
+                    "bastion:good_gap:2"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "253b53d832ab4bafb5ee0308d5164ccf",
+                    "nickname": "Aquacorde",
+                    "roleType": 3,
+                    "eloRate": 2329,
+                    "eloRank": 13,
+                    "country": "ca"
+                },
+                {
+                    "uuid": "c32cdd142a0147dcb91771319d745194",
+                    "nickname": "Erikfzf",
+                    "roleType": 1,
+                    "eloRate": 2256,
+                    "eloRank": 25,
+                    "country": "au"
+                },
+                {
+                    "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                    "nickname": "doogile",
+                    "roleType": 3,
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "country": "us"
+                }
+            ],
+            "spectators": [
+                {
+                    "uuid": "7d7f9891969a4c479dc8f4d6a5b302af",
+                    "nickname": "Nerdi_",
+                    "roleType": 3,
+                    "eloRate": 1273,
+                    "eloRank": 2199,
+                    "country": "us"
+                }
+            ],
+            "result": {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 573069
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "changes": [],
+            "season": 7,
+            "date": 1745088483,
+            "botSource": null,
+            "beginner": false,
+            "seedType": "VILLAGE",
+            "bastionType": "STABLES",
+            "tag": null
+        }
+    ]
+}
+Show Full Response
+Get All User Season Results
+Returns the {identifier}'s entire profile data.
+GET   https://api.mcsrranked.com/users/{identifier}/seasons
+Parameter	Type	Required?	Description
+{identifier}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+Response Type
+Parameter	Type	Description
+uuid	String	UUID (without Dashes)
+nickname	String	
+roleType	Integer	
+eloRate	Integer?	Elo rate of current season, if the user hasn't finished placement matches it is null
+eloRank	Integer?	Current season rank
+country	String?	Country code in lowercased ISO 3166-1 alpha-2 format
+seasonResults.{season}.last.eloRate	Integer	Current Elo rate this season
+seasonResults.{season}.last.eloRank	Integer?	Current Elo rank this season
+seasonResults.{season}.last.phasePoint	Integer	Current phase points this season
+seasonResults.{season}.highest	Integer	Highest Elo rate this season
+seasonResults.{season}.lowest	Integer	Lowest Elo rate this season
+seasonResults.{season}.phases[].phase	Integer	Phase number
+seasonResults.{season}.phases[].eloRate	Integer	Elo rate at phase end
+seasonResults.{season}.phases[].eloRank	Integer	Elo rank at phase end
+seasonResults.{season}.phases[].point	Integer	Phase reward points
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+        "nickname": "doogile",
+        "roleType": 3,
+        "eloRate": 2243,
+        "eloRank": 27,
+        "country": "us",
+        "seasonResults": {
+            "1": {
+                "last": {
+                    "eloRate": 1987,
+                    "eloRank": 10,
+                    "phasePoint": 0
+                },
+                "highest": 2096,
+                "lowest": 1172,
+                "phases": []
+            },
+            "2": {
+                "last": {
+                    "eloRate": 1959,
+                    "eloRank": 10,
+                    "phasePoint": 0
+                },
+                "highest": 1974,
+                "lowest": 1549,
+                "phases": []
+            },
+            "3": {
+                "last": {
+                    "eloRate": 2198,
+                    "eloRank": 4,
+                    "phasePoint": 0
+                },
+                "highest": 2221,
+                "lowest": 1670,
+                "phases": []
+            },
+            "4": {
+                "last": {
+                    "eloRate": 2322,
+                    "eloRank": 1,
+                    "phasePoint": 185
+                },
+                "highest": 2382,
+                "lowest": 2084,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 2089,
+                        "eloRank": 2,
+                        "point": 40
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 2237,
+                        "eloRank": 1,
+                        "point": 60
+                    },
+                    {
+                        "phase": 3,
+                        "eloRate": 2322,
+                        "eloRank": 1,
+                        "point": 75
+                    }
+                ]
+            },
+            "5": {
+                "last": {
+                    "eloRate": 2292,
+                    "eloRank": 2,
+                    "phasePoint": 280
+                },
+                "highest": 2376,
+                "lowest": 2093,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 2137,
+                        "eloRank": 1,
+                        "point": 50
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 2198,
+                        "eloRank": 2,
+                        "point": 50
+                    },
+                    {
+                        "phase": 3,
+                        "eloRate": 2259,
+                        "eloRank": 1,
+                        "point": 75
+                    }
+                ]
+            },
+            "6": {
+                "last": {
+                    "eloRate": 2413,
+                    "eloRank": 1,
+                    "phasePoint": 260
+                },
+                "highest": 2441,
+                "lowest": 2281,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 2059,
+                        "eloRank": 2,
+                        "point": 40
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 2083,
+                        "eloRank": 7,
+                        "point": 30
+                    },
+                    {
+                        "phase": 3,
+                        "eloRate": 2400,
+                        "eloRank": 1,
+                        "point": 75
+                    }
+                ]
+            },
+            "7": {
+                "last": {
+                    "eloRate": 2309,
+                    "eloRank": 7,
+                    "phasePoint": 125
+                },
+                "highest": 2395,
+                "lowest": 1947,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 1956,
+                        "eloRank": 5,
+                        "point": 25
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 1804,
+                        "eloRank": 35,
+                        "point": 15
+                    },
+                    {
+                        "phase": 3,
+                        "eloRate": 2123,
+                        "eloRank": 10,
+                        "point": 30
+                    }
+                ]
+            },
+            "8": {
+                "last": {
+                    "eloRate": 2390,
+                    "eloRank": 2,
+                    "phasePoint": 254
+                },
+                "highest": 2416,
+                "lowest": 1552,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 2131,
+                        "eloRank": 1,
+                        "point": 50
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 2245,
+                        "eloRank": 1,
+                        "point": 60
+                    },
+                    {
+                        "phase": 3,
+                        "eloRate": 2154,
+                        "eloRank": 8,
+                        "point": 50
+                    }
+                ]
+            },
+            "9": {
+                "last": {
+                    "eloRate": 2562,
+                    "eloRank": 3,
+                    "phasePoint": 248
+                },
+                "highest": 2607,
+                "lowest": 1722,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 2231,
+                        "eloRank": 2,
+                        "point": 47
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 2255,
+                        "eloRank": 13,
+                        "point": 31
+                    },
+                    {
+                        "phase": 3,
+                        "eloRate": 2403,
+                        "eloRank": 6,
+                        "point": 56
+                    }
+                ]
+            },
+            "10": {
+                "last": {
+                    "eloRate": 2243,
+                    "eloRank": 27,
+                    "phasePoint": 110
+                },
+                "highest": 2462,
+                "lowest": 1648,
+                "phases": [
+                    {
+                        "phase": 1,
+                        "eloRate": 2170,
+                        "eloRank": 4,
+                        "point": 42
+                    },
+                    {
+                        "phase": 2,
+                        "eloRate": 2329,
+                        "eloRank": 5,
+                        "point": 48
+                    }
+                ]
+            }
+        }
+    }
+}
+Show Full Response
+Get User's Live Match Data
+Returns real-time match data from the Private Room the player is in. To access this data, a Private-Key header is required and the player must be host or co-host of the Private Room.
+GET   https://api.mcsrranked.com/users/{identifier}/live
+Parameter	Type	Required?	Description
+{identifier}	UserIdentifier	true	Check the Objects#UserIdentifier section.
+Private-Key	String [Header]	true	It can be generated in-game via Profile → Settings → Generate & Copy API Private Key.
+Response Type
+Parameter	Type	Description
+lastId	Integer?	Match ID of previous match. All data is reset when the match ends. You can get previous match data with this.
+type	MatchType	
+status	String	One of idle, counting, generate, ready, running, done
+time	Time	Returns 0 if the match has not started.
+players	UserProfile[]	
+spectators	UserProfile[]	
+timelines[].uuid	String	Player uuid of timeline
+timelines[].time	Time	Match time of timeline
+timelines[].type	String	Identifier of timeline
+completions[].uuid	String	Player uuid of completion
+completions[].time	Time	Match time of completion
+Show Sample Response
+This endpoint doesn't support sample response. :(
+Get Recent Matches
+Returns recent completed matches.
+GET   https://api.mcsrranked.com/matches
+Parameter	Type	Required?	Description
+before	Integer	false	Match list cursor, it must be match ID. Get matches before this ID.
+after	Integer	false	Match list cursor, it must be match ID. Get matches after this ID.
+count	Integer	false	Number of matches in the response, it must be between 1 and 100 (default: 20)
+type	MatchType?	false	Filter by match type (default: null)
+tag	String	false	Filter by match tag.
+season	Integer	false	Filter by season (default: current season number)
+includedecay	any?	false	Whether to include decay matches. If you want to use it, just add the key of the parameter, such as ?includedecay
+Response Type
+Parameter	Type	Description
+Array[]	MatchInfo[]	
+Show Sample Response
+{
+    "status": "success",
+    "data": [
+        {
+            "id": 8405082,
+            "type": 2,
+            "seed": {
+                "id": "m72316ukqbntq9wg",
+                "overworld": "SHIPWRECK",
+                "nether": "TREASURE",
+                "endTowers": [
+                    76,
+                    97,
+                    100
+                ],
+                "variations": [
+                    "biome:structure:deep_ocean",
+                    "type:structure:full",
+                    "biome:structure:deep_ocean"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "e61502b6868e4f2588651c7907895768",
+                    "nickname": "KalBec",
+                    "roleType": 0,
+                    "eloRate": 921,
+                    "eloRank": 9155,
+                    "country": "us"
+                },
+                {
+                    "uuid": "66b8d6ed845c4b93a9f876af80971439",
+                    "nickname": "MrRushy_",
+                    "roleType": 0,
+                    "eloRate": 964,
+                    "eloRank": 9064,
+                    "country": "mx"
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "66b8d6ed845c4b93a9f876af80971439",
+                "time": 1720268
+            },
+            "forfeited": false,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "vod": [],
+            "changes": [
+                {
+                    "uuid": "66b8d6ed845c4b93a9f876af80971439",
+                    "change": 20,
+                    "eloRate": 944
+                },
+                {
+                    "uuid": "e61502b6868e4f2588651c7907895768",
+                    "change": -20,
+                    "eloRate": 941
+                }
+            ],
+            "beginner": false,
+            "botSource": null,
+            "season": 10,
+            "date": 1774245504,
+            "seedType": "SHIPWRECK",
+            "bastionType": "TREASURE",
+            "tag": null
+        },
+        {
+            "id": 8405081,
+            "type": 3,
+            "seed": {
+                "id": "mamhwc28lvh77ona",
+                "overworld": "VILLAGE",
+                "nether": "TREASURE",
+                "endTowers": [
+                    100,
+                    85,
+                    76
+                ],
+                "variations": [
+                    "biome:structure:savanna",
+                    "biome:structure:savanna",
+                    "biome:bastion:soul_sand_valley"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "79a50551e7824282ad46ecab6809d886",
+                    "nickname": "synsorcell",
+                    "roleType": 1,
+                    "eloRate": null,
+                    "eloRank": null,
+                    "country": null
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": null,
+                "time": 3054287
+            },
+            "forfeited": true,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "vod": [],
+            "changes": [],
+            "beginner": false,
+            "botSource": null,
+            "season": 10,
+            "date": 1774245494,
+            "seedType": "VILLAGE",
+            "bastionType": "TREASURE",
+            "tag": null
+        },
+        {
+            "id": 8405080,
+            "type": 2,
+            "seed": {
+                "id": "m723bsaeetepfs65",
+                "overworld": "SHIPWRECK",
+                "nether": "HOUSING",
+                "endTowers": [
+                    79,
+                    103,
+                    82
+                ],
+                "variations": [
+                    "biome:structure:deep_ocean",
+                    "type:structure:upsidedown",
+                    "biome:structure:deep_ocean"
+                ]
+            },
+            "category": "ANY",
+            "gameMode": "default",
+            "players": [
+                {
+                    "uuid": "11f834ee1ee2461d89af7003fd6b4eb7",
+                    "nickname": "River_71",
+                    "roleType": 1,
+                    "eloRate": 815,
+                    "eloRank": 13435,
+                    "country": null
+                },
+                {
+                    "uuid": "7fbf1b6ac51f4936b6c28448e3c6bebf",
+                    "nickname": "EggEgg67",
+                    "roleType": 3,
+                    "eloRate": 831,
+                    "eloRank": 12889,
+                    "country": null
+                }
+            ],
+            "spectators": [],
+            "result": {
+                "uuid": "11f834ee1ee2461d89af7003fd6b4eb7",
+                "time": 396645
+            },
+            "forfeited": true,
+            "decayed": false,
+            "rank": {
+                "season": null,
+                "allTime": null
+            },
+            "vod": [],
+            "changes": [
+                {
+                    "uuid": "11f834ee1ee2461d89af7003fd6b4eb7",
+                    "change": 22,
+                    "eloRate": 793
+                },
+                {
+                    "uuid": "7fbf1b6ac51f4936b6c28448e3c6bebf",
+                    "change": -22,
+                    "eloRate": 853
+                }
+            ],
+            "beginner": false,
+            "botSource": null,
+            "season": 10,
+            "date": 1774245494,
+            "seedType": "SHIPWRECK",
+            "bastionType": "HOUSING",
+            "tag": null
+        }
+    ]
+}
+Show Full Response
+Get Match Info
+Returns the detailed match info.
+GET   https://api.mcsrranked.com/matches/{match_id}
+Parameter	Type	Required?	Description
+{match_id}	Integer	true	ID of the match
+Response Type
+Parameter	Type	Description
+Object	MatchInfo (Advanced)	
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "id": 2100446,
+        "type": 2,
+        "seed": {
+            "id": "m722zb9yusscfodv",
+            "overworld": "RUINED_PORTAL",
+            "nether": "TREASURE",
+            "endTowers": [
+                91,
+                97,
+                82
+            ],
+            "variations": [
+                "type:structure:lava",
+                "biome:structure:forest",
+                "type:structure:lava"
+            ]
+        },
+        "category": "ANY",
+        "gameMode": "default",
+        "players": [
+            {
+                "uuid": "635f35ee69ed4f0c94ff26ece4818956",
+                "nickname": "edcr",
+                "roleType": 3,
+                "eloRate": 2646,
+                "eloRank": 1,
+                "country": "gb"
+            },
+            {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "nickname": "doogile",
+                "roleType": 3,
+                "eloRate": 2243,
+                "eloRank": 27,
+                "country": "us"
+            }
+        ],
+        "spectators": [],
+        "result": {
+            "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+            "time": 485339
+        },
+        "forfeited": false,
+        "decayed": false,
+        "rank": {
+            "season": null,
+            "allTime": 1000
+        },
+        "changes": [
+            {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "change": 15,
+                "eloRate": 1951
+            },
+            {
+                "uuid": "635f35ee69ed4f0c94ff26ece4818956",
+                "change": -15,
+                "eloRate": 1814
+            }
+        ],
+        "completions": [
+            {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 485339
+            }
+        ],
+        "timelines": [
+            {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 475245,
+                "type": "projectelo.timeline.dragon_death"
+            },
+            {
+                "uuid": "635f35ee69ed4f0c94ff26ece4818956",
+                "time": 445298,
+                "type": "story.follow_ender_eye"
+            },
+            {
+                "uuid": "3c8757790ab0400b8b9e3936e0dd535b",
+                "time": 424019,
+                "type": "end.root"
+            }
+        ],
+        "season": 8,
+        "date": 1747004005,
+        "botSource": null,
+        "beginner": false,
+        "seedType": "RUINED_PORTAL",
+        "bastionType": "TREASURE",
+        "tag": null,
+        "replayExist": false
+    }
+}
+Show Full Response
+Get Online Players & Live Stream Matches
+Returns the online playercount and live matches with public streams.
+To make your stream public:
+Link your Twitch account with your MCSR Ranked profile.
+Make your Twitch public on your MCSR Ranked profile.
+Set "Public Stream" option in MCSR Ranked Settings.
+Start streaming on Twitch.
+GET   https://api.mcsrranked.com/live
+Parameter	Type	Required?	Description
+Response Type
+Parameter	Type	Description
+players	Integer	Concurrent number of players who are connected to the MCSR Ranked server
+liveMatches[].currentTime	Time	
+liveMatches[].players	UserProfile[]	Only players with public stream enabled are included.
+liveMatches[].data.{UUID}.liveUrl	String?	Live stream url of player. This is null if the player hasn't activated public stream.
+liveMatches[].data.{UUID}.timeline.time	Time	Match time of last player split update.
+liveMatches[].data.{UUID}.timeline.type	String	Timeline identifier of last player split update.
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "players": 1206,
+        "liveMatches": [
+            {
+                "currentTime": 666161,
+                "players": [
+                    {
+                        "uuid": "0070659a009443ef9443e2333d0d3ef3",
+                        "nickname": "Fairy330",
+                        "roleType": 1,
+                        "eloRate": 1777,
+                        "eloRank": 229,
+                        "country": "cn"
+                    },
+                    {
+                        "uuid": "5b0a001b1fb4484f97c895a77ce21ffa",
+                        "nickname": "12BrainCells",
+                        "roleType": 1,
+                        "eloRate": 1701,
+                        "eloRank": 276,
+                        "country": "ca"
+                    }
+                ],
+                "data": {
+                    "0070659a009443ef9443e2333d0d3ef3": {
+                        "liveUrl": null,
+                        "timeline": {
+                            "time": 489123,
+                            "type": "projectelo.timeline.blind_travel"
+                        }
+                    },
+                    "5b0a001b1fb4484f97c895a77ce21ffa": {
+                        "liveUrl": "https://twitch.tv/12braincells",
+                        "timeline": {
+                            "time": 606910,
+                            "type": "nether.find_fortress"
+                        }
+                    }
+                }
+            },
+            {
+                "currentTime": 853343,
+                "players": [
+                    {
+                        "uuid": "da6bb2f0ac284fd4b004c2b2a226c0db",
+                        "nickname": "MacikaStefan",
+                        "roleType": 0,
+                        "eloRate": 989,
+                        "eloRank": 8281,
+                        "country": null
+                    },
+                    {
+                        "uuid": "ce65234963b249adbf508c00fbda7f4f",
+                        "nickname": "RelicPlayz",
+                        "roleType": 2,
+                        "eloRate": 975,
+                        "eloRank": 8705,
+                        "country": "us"
+                    }
+                ],
+                "data": {
+                    "da6bb2f0ac284fd4b004c2b2a226c0db": {
+                        "liveUrl": null,
+                        "timeline": {
+                            "time": 689812,
+                            "type": "projectelo.timeline.blind_travel"
+                        }
+                    },
+                    "ce65234963b249adbf508c00fbda7f4f": {
+                        "liveUrl": "https://twitch.tv/relicplayzz",
+                        "timeline": {
+                            "time": 710531,
+                            "type": "projectelo.timeline.blind_travel"
+                        }
+                    }
+                }
+            },
+            {
+                "currentTime": 824115,
+                "players": [
+                    {
+                        "uuid": "ee7df749e9ff491cb640bf304b8a84f6",
+                        "nickname": "ellielovesu",
+                        "roleType": 0,
+                        "eloRate": 1191,
+                        "eloRank": 3663,
+                        "country": null
+                    },
+                    {
+                        "uuid": "d7d5369390414d87b644724780457ebc",
+                        "nickname": "AppleW",
+                        "roleType": 0,
+                        "eloRate": 1176,
+                        "eloRank": 3561,
+                        "country": "ee"
+                    }
+                ],
+                "data": {
+                    "ee7df749e9ff491cb640bf304b8a84f6": {
+                        "liveUrl": null,
+                        "timeline": {
+                            "time": 620088,
+                            "type": "projectelo.timeline.blind_travel"
+                        }
+                    },
+                    "d7d5369390414d87b644724780457ebc": {
+                        "liveUrl": "https://twitch.tv/realapplew",
+                        "timeline": {
+                            "time": 692967,
+                            "type": "projectelo.timeline.blind_travel"
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+Show Full Response
+Get Elo Leaderboard
+Returns the top 150 players on the leaderboard, ranked by their Elo rate (it's not always 150 players due to same ranks)
+GET   https://api.mcsrranked.com/leaderboard
+Parameter	Type	Required?	Description
+season	Integer	false	Specific season (default: current season number)
+country	String	false	Specific country code with lowercased ISO 3166-1 alpha-2 format
+Response Type
+Parameter	Type	Description
+season.startsAt	Date	Date of season start.
+season.endsAt	Date	Date of season end.
+season.number	Integer	
+users	UserProfile[]	
+users[].seasonResult.eloRate	Integer	Final Elo rate of player in target season
+users[].seasonResult.eloRank	Integer	Final Elo rank of player in target season
+users[].seasonResult.phasePoint	Integer	Final phase points of player in target season
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "season": {
+            "startsAt": 1767312000,
+            "endsAt": 1777680000,
+            "number": 10
+        },
+        "users": [
+            {
+                "uuid": "635f35ee69ed4f0c94ff26ece4818956",
+                "nickname": "edcr",
+                "roleType": 3,
+                "eloRate": 2646,
+                "eloRank": 1,
+                "country": "gb",
+                "seasonResult": {
+                    "eloRate": 2646,
+                    "eloRank": 1,
+                    "phasePoint": 122
+                }
+            },
+            {
+                "uuid": "a5d83ff042164ff1b862dedc118c1dae",
+                "nickname": "steez",
+                "roleType": 1,
+                "eloRate": 2508,
+                "eloRank": 2,
+                "country": "gb",
+                "seasonResult": {
+                    "eloRate": 2508,
+                    "eloRank": 2,
+                    "phasePoint": 47
+                }
+            },
+            {
+                "uuid": "be4ad7e999e14a74974d47ac650062a3",
+                "nickname": "bbiddd",
+                "roleType": 1,
+                "eloRate": 2495,
+                "eloRank": 3,
+                "country": "ca",
+                "seasonResult": {
+                    "eloRate": 2495,
+                    "eloRank": 3,
+                    "phasePoint": 19
+                }
+            }
+        ]
+    }
+}
+Show Full Response
+Get Season Phase Points Leaderboard
+Returns the top 100 players ranked by their Phase Points
+GET   https://api.mcsrranked.com/phase-leaderboard
+Parameter	Type	Required?	Description
+season	Integer	false	Filter by season (default: current season number)
+country	String	false	Filter by country (format: ISO 3166-1 alpha-2)
+predicted	Any	false	Get predicted phase points leaderboard. Only works with the current season
+Response Type
+Parameter	Type	Description
+phase.endsAt	Date?	Date the season ends. If target season is not current season it is null
+phase.number	Integer?	Phase number of the season. If target season is not current season it is null
+phase.season	Integer	
+users	UserProfile[]	
+users[].seasonResult.eloRate	Integer	Final Elo rate of player in target season
+users[].seasonResult.eloRank	Integer	Final Elo rank of player in target season
+users[].seasonResult.phasePoint	Integer	Final phase points of player in target season
+users[].predPhasePoint	Integer	Predicted phase points of player for next phase. It will be same value with `users[].seasonResult.phasePoint` if response is a past season.
+Show Sample Response
+{
+    "status": "error",
+    "data": {
+        "query": {
+            "predicted": [
+                "Must be a boolean (true/false or 0/1)"
+            ]
+        }
+    }
+}
+Show Full Response
+Get Season Best Time Leaderboard
+Returns the 100 fastest runs of a season
+GET   https://api.mcsrranked.com/record-leaderboard
+Parameter	Type	Required?	Description
+season	Integer	false	Filter by season. If it's 0, it will default to the current season. If it's not defined, it combines all seasons. (default: undefined)
+distinct	any?	false	Whether to only get distinct runners. If enabled, only the fastest run of each runner is returned.
+Response Type
+Parameter	Type	Description
+[].rank	Integer	
+[].season	Integer	
+[].date	Date	
+[].id	Integer	Match ID
+[].time	Time	
+[].user	UserProfile	
+[].seed	MatchSeed	
+Show Sample Response
+{
+    "status": "success",
+    "data": [
+        {
+            "rank": 1,
+            "id": 3489002,
+            "season": 9,
+            "date": 1761876457,
+            "time": 347271,
+            "user": {
+                "uuid": "a54e3bc4c6354b07a236b81efbcfe791",
+                "nickname": "Infume",
+                "roleType": 2,
+                "eloRate": 2397,
+                "eloRank": 9,
+                "country": "us"
+            },
+            "seed": {
+                "id": "m72326d0x51kz9m0",
+                "overworld": "RUINED_PORTAL",
+                "nether": "HOUSING",
+                "endTowers": [
+                    94,
+                    82,
+                    85
+                ],
+                "variations": [
+                    "type:structure:lava",
+                    "chest:structure:looting_sword",
+                    "biome:structure:beach"
+                ]
+            }
+        },
+        {
+            "rank": 2,
+            "id": 7749076,
+            "season": 10,
+            "date": 1773006093,
+            "time": 358323,
+            "user": {
+                "uuid": "2fe70934e7be458dba747c4ac830391c",
+                "nickname": "nhb_",
+                "roleType": 1,
+                "eloRate": 2141,
+                "eloRank": 45,
+                "country": null
+            },
+            "seed": {
+                "id": "m723c02rbo1squkd",
+                "overworld": "RUINED_PORTAL",
+                "nether": "TREASURE",
+                "endTowers": [
+                    79,
+                    100,
+                    103
+                ],
+                "variations": [
+                    "type:structure:completable",
+                    "biome:structure:plains",
+                    "type:structure:completable"
+                ]
+            }
+        },
+        {
+            "rank": 3,
+            "id": 2199947,
+            "season": 8,
+            "date": 1748204915,
+            "time": 364035,
+            "user": {
+                "uuid": "5fe66e8b389f4dc384222e8cc09485f0",
+                "nickname": "sanjinhu",
+                "roleType": 0,
+                "eloRate": 1909,
+                "eloRank": 127,
+                "country": "br"
+            },
+            "seed": {
+                "id": "m72394zfrilfvz41",
+                "overworld": "RUINED_PORTAL",
+                "nether": "BRIDGE",
+                "endTowers": [
+                    88,
+                    94,
+                    82
+                ],
+                "variations": [
+                    "type:structure:completable",
+                    "chest:structure:looting_sword",
+                    "biome:structure:forest"
+                ]
+            }
+        }
+    ]
+}
+Show Full Response
+Get Weekly Race Leaderboard
+Returns Weekly Race info and leaderboard
+GET   https://api.mcsrranked.com/weekly-race/{id?}
+Parameter	Type	Required?	Description
+{id}	Integer	false	Specific week number (as id in this endpoint) (default: current weekly race)
+Response Type
+Parameter	Type	Description
+id	Integer	
+seed.overworld	String	
+seed.nether	String	
+seed.theEnd	String	
+seed.rng	String	
+endsAt	Date	
+leaderboard[].rank	Integer	
+leaderboard[].player	User	
+leaderboard[].time	Time	
+leaderboard[].replayExist	Boolean	
+Show Sample Response
+{
+    "status": "success",
+    "data": {
+        "id": 78,
+        "seed": {
+            "overworld": "357245722579578790",
+            "nether": "357245722579578790",
+            "theEnd": "357245722579578790",
+            "rng": "357245722579578790",
+            "flags": 207
+        },
+        "endsAt": 1774828800,
+        "leaderboard": [
+            {
+                "rank": 1,
+                "player": {
+                    "uuid": "4aed1e5e8f5c44e2bc0666e0c03781af",
+                    "nickname": "nEmerald",
+                    "roleType": 2,
+                    "eloRate": 2323,
+                    "eloRank": 14,
+                    "country": "us"
+                },
+                "time": 354851,
+                "replayExist": true
+            },
+            {
+                "rank": 2,
+                "player": {
+                    "uuid": "aaddf95767644f79b4765736eb7d5f78",
+                    "nickname": "PiguinL",
+                    "roleType": 0,
+                    "eloRate": null,
+                    "eloRank": null,
+                    "country": "cn"
+                },
+                "time": 487570,
+                "replayExist": true
+            },
+            {
+                "rank": 3,
+                "player": {
+                    "uuid": "c58969147ec84fcdbddfe6a89bda049a",
+                    "nickname": "InstantAimm",
+                    "roleType": 0,
+                    "eloRate": 1268,
+                    "eloRank": 2252,
+                    "country": null
+                },
+                "time": 557344,
+                "replayExist": true
+            }
+        ]
+    }
+}
+Show Full Response
