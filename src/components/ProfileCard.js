@@ -1,10 +1,10 @@
 import React from 'react';
 
 const ROLE_LABELS = {
-  0: 'Player',
-  1: 'Staff',
-  2: 'Admin',
-  3: 'Member+',
+  0: '',
+  1: 'Stone Pickaxe',
+  2: 'Iron Pickaxe',
+  3: 'Diamond Pickaxe',
 };
 
 const toFlagEmoji = (countryCode) => {
