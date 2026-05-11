@@ -6,10 +6,13 @@ import EloProgressionCard from './components/EloProgressionCard';
 import EloInsightsCard from './components/EloInsightsCard';
 import SeasonPeaksCard from './components/SeasonPeaksCard';
 import MatchDetailsCard from './components/MatchDetailsCard';
+import AverageTimelinesCard from './components/AverageTimelinesCard';
 import ConnectionsCard from './components/ConnectionsCard';
 import RecentMatchesCard from './components/RecentMatchesCard';
 import ActivityCard from './components/ActivityCard';
 import WeeklyRaceCard from './components/WeeklyRaceCard';
+import DailyProgressCard from './components/DailyProgressCard';
+import { buildSelectedTimelineRows } from './components/timelineUtils';
 
 const API_BASE = 'https://api.mcsrranked.com';
 const DEFAULT_USER = 'F1nndegamer';
@@ -172,6 +175,7 @@ const getBestMatchRank = (matches) => {
 const App = () => {
   const [user, setUser] = useState(null);
   const [matches, setMatches] = useState([]);
+  const [rankedRecentMatches, setRankedRecentMatches] = useState([]);
   const [allTimeRankedMatches, setAllTimeRankedMatches] = useState([]);
   const [hoveredEloPoint, setHoveredEloPoint] = useState(null);
   const [selectedMatchId, setSelectedMatchId] = useState(null);
@@ -180,6 +184,7 @@ const App = () => {
   const [matchDetailsCache, setMatchDetailsCache] = useState({});
   const [isLoadingMatchDetails, setIsLoadingMatchDetails] = useState(false);
   const [error, setError] = useState('');
+  const [isLoadingAverageTimelines, setIsLoadingAverageTimelines] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const username = resolveUsername();
 
@@ -202,19 +207,28 @@ const App = () => {
           throw new Error('Could not load user profile from API.');
         }
 
-        const [matchesResponse, rankedMatchData] = await Promise.all([
-          fetch(`${API_BASE}/users/${username}/matches?count=20&sort=newest`),
+        const [matchesResponse, rankedRecentResponse, rankedMatchData] = await Promise.all([
+          fetch(`${API_BASE}/users/${username}/matches?count=50&sort=newest`),
+          fetch(`${API_BASE}/users/${username}/matches?count=50&sort=newest&type=${RANKED_MATCH_TYPE}`),
           fetchAllRankedMatches(username),
         ]);
 
-        const matchData = await matchesResponse.json();
+        const [matchData, rankedRecentData] = await Promise.all([
+          matchesResponse.json(),
+          rankedRecentResponse.json(),
+        ]);
 
         if (matchData.status !== 'success' || !Array.isArray(matchData.data)) {
           throw new Error('Could not load matches from API.');
         }
 
+        if (rankedRecentData.status !== 'success' || !Array.isArray(rankedRecentData.data)) {
+          throw new Error('Could not load recent ranked matches from API.');
+        }
+
         setUser(userData.data);
         setMatches(matchData.data);
+        setRankedRecentMatches(rankedRecentData.data);
         setAllTimeRankedMatches(rankedMatchData);
       } catch (fetchError) {
         setError(fetchError.message || 'Unexpected API error.');
@@ -225,6 +239,57 @@ const App = () => {
 
     fetchData();
   }, [username]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchAverageTimelineMatches = async () => {
+      if (!rankedRecentMatches.length) return;
+
+      const recentIds = rankedRecentMatches.slice(0, 50).map((match) => match.id);
+      const missingIds = recentIds.filter((id) => !matchDetailsCache[id]);
+
+      if (missingIds.length === 0) return;
+
+      try {
+        setIsLoadingAverageTimelines(true);
+
+        const fetched = await Promise.all(
+          missingIds.map(async (id) => {
+            try {
+              const response = await fetch(`${API_BASE}/matches/${id}`);
+              const result = await response.json();
+              return result.status === 'success' && result.data ? result.data : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        if (cancelled) return;
+
+        const fetchedMap = fetched.reduce((acc, item) => {
+          if (item?.id) acc[item.id] = item;
+          return acc;
+        }, {});
+
+        if (Object.keys(fetchedMap).length > 0) {
+          setMatchDetailsCache((previous) => ({
+            ...previous,
+            ...fetchedMap,
+          }));
+        }
+      } finally {
+        if (!cancelled) setIsLoadingAverageTimelines(false);
+      }
+    };
+
+    fetchAverageTimelineMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rankedRecentMatches, matchDetailsCache]);
 
   useEffect(() => {
     const selectedId = selectedMatchId;
@@ -295,6 +360,13 @@ const App = () => {
   const eloProgression = allTimeEloProgression.length > 0 ? allTimeEloProgression : seasonFallbackProgression;
   const selectedFromHover = hoveredEloPoint?.match || null;
   const detailedMatch = selectedMatchId ? selectedMatchDetails || selectedMatchPreview : selectedFromHover;
+  const selectedTimelineMatches = selectedMatchId && detailedMatch ? [detailedMatch] : [];
+  const timelineRows = buildSelectedTimelineRows(selectedTimelineMatches, user.uuid);
+  const recentDetailedMatches = rankedRecentMatches
+    .slice(0, 50)
+    .map((match) => matchDetailsCache[match.id] || null)
+    .filter(Boolean);
+  const averageTimelineRows = buildSelectedTimelineRows(recentDetailedMatches, user.uuid);
   const bestMatchRank = getBestMatchRank(matches);
   const seasonNumber = matches[0]?.season || 'Current';
 
@@ -306,6 +378,7 @@ const App = () => {
       <div className="lg:col-span-3 space-y-6">
         <ProfileCard user={user} />
         <MatchRecordCard wins={wins} losses={losses} played={played} season={seasonNumber} />
+        <DailyProgressCard rankedRecentMatches={rankedRecentMatches} />
         <ActivityCard timestamp={user.timestamp} />
       </div>
 
@@ -328,8 +401,14 @@ const App = () => {
         <MatchDetailsCard
           match={detailedMatch}
           userUuid={user.uuid}
+          timelineRows={timelineRows}
           isLoadingDetails={isLoadingMatchDetails}
           sourceLabel={selectedMatchId ? 'Selected Match' : hoveredEloPoint?.match ? 'Hover Preview' : 'No Match'}
+        />
+        <AverageTimelinesCard
+          timelineRows={averageTimelineRows}
+          isLoading={isLoadingAverageTimelines}
+          totalWindow={Math.min(rankedRecentMatches.length, 50)}
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <EloInsightsCard data={allTimeEloProgression} />

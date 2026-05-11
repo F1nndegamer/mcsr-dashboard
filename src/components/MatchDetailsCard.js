@@ -1,4 +1,5 @@
 import React from 'react';
+import { TIMELINE_PHASES } from './timelineUtils';
 
 const formatDuration = (ms) => {
   if (typeof ms !== 'number') return 'N/A';
@@ -33,7 +34,81 @@ const getResultLabel = (match, userUuid) => {
   return 'Loss';
 };
 
-const MatchDetailsCard = ({ match, userUuid, sourceLabel, isLoadingDetails }) => {
+const buildTimelineBlocks = (timeline, referenceTime) => {
+  if (!timeline || typeof timeline.finalTime !== 'number' || timeline.finalTime <= 0) return [];
+
+  const totalForWidth = Math.max(referenceTime || timeline.finalTime, 1);
+  const entries = TIMELINE_PHASES
+    .map((phase) => ({
+      key: phase.key,
+      label: phase.label,
+      colorClass: phase.colorClass,
+      start: timeline.phaseTimes?.[phase.key],
+    }))
+    .filter((entry) => typeof entry.start === 'number')
+    .sort((a, b) => a.start - b.start);
+
+  const blocks = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const current = entries[index];
+    const next = entries[index + 1];
+    const end = typeof next?.start === 'number' ? next.start : timeline.finalTime;
+    const duration = end - current.start;
+
+    if (duration <= 0) continue;
+
+    blocks.push({
+      key: current.key,
+      label: current.label,
+      colorClass: current.colorClass,
+      start: current.start,
+      end,
+      duration,
+      width: (duration / totalForWidth) * 100,
+    });
+  }
+
+  return blocks;
+};
+
+const TimelineSplitBar = ({ timeline, referenceTime }) => {
+  const blocks = buildTimelineBlocks(timeline, referenceTime);
+
+  if (blocks.length === 0) {
+    return <div className="h-3 rounded-full bg-white/10" />;
+  }
+
+  return (
+    <div className="flex h-3 w-full items-center overflow-hidden rounded-full bg-white/5">
+      {blocks.map((block, index) => {
+        const tooltip = `${block.label} split | duration ${formatDuration(block.duration)} | at ${formatDuration(block.end)}`;
+
+        return (
+          <div
+            key={`${block.key}-${index}`}
+            title={tooltip}
+            aria-label={tooltip}
+            className={[
+              'relative h-full cursor-help transition-transform duration-150 hover:z-10 hover:scale-y-[1.5]',
+              block.colorClass,
+              index !== blocks.length - 1 ? 'border-r border-[#2b2d31]' : '',
+            ].join(' ')}
+            style={{ width: `${block.width}%` }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+const MatchDetailsCard = ({
+  match,
+  userUuid,
+  timelineRows = [],
+  sourceLabel,
+  isLoadingDetails,
+}) => {
   if (!match) {
     return (
       <div className="glass-panel p-6">
@@ -148,6 +223,56 @@ const MatchDetailsCard = ({ match, userUuid, sourceLabel, isLoadingDetails }) =>
           Players: {match.players.map((player) => player.nickname).join(', ')}
         </div>
       ) : null}
+
+      <div className="mt-5 pt-4 border-t border-white/10">
+        <div className="flex justify-between items-center mb-3">
+          <p className="text-xs uppercase font-bold">Selected Match Timelines</p>
+          <p className="text-[10px] uppercase text-gray-500">Single selected match, versus opponent</p>
+        </div>
+
+        {timelineRows.length === 0 ? (
+          <p className="text-xs text-gray-500">Select matches from the graph or recent list to build your timeline stack.</p>
+        ) : (
+          <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+            {timelineRows.map((row) => (
+              <div key={row.matchId} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                <div className="flex justify-between text-[11px] text-gray-500 mb-2">
+                  <span>Match #{row.matchId}</span>
+                  <span>{formatTimestamp(row.matchDate)}</span>
+                </div>
+
+                {row.self ? (
+                  <div className="mb-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-xs font-semibold text-minecraft-green">{row.self.player.nickname}</p>
+                      <p className="text-[11px] text-gray-300">{formatDuration(row.self.timeline?.finalTime)}</p>
+                    </div>
+                    <TimelineSplitBar
+                      timeline={row.self.timeline}
+                      referenceTime={Math.max(row.self?.timeline?.finalTime || 0, row.opponent?.timeline?.finalTime || 0, 1)}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No timeline data for selected user in this match.</p>
+                )}
+
+                {row.opponent ? (
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-xs font-semibold text-minecraft-gold">{row.opponent.player.nickname}</p>
+                      <p className="text-[11px] text-gray-300">{formatDuration(row.opponent.timeline?.finalTime)}</p>
+                    </div>
+                    <TimelineSplitBar
+                      timeline={row.opponent.timeline}
+                      referenceTime={Math.max(row.self?.timeline?.finalTime || 0, row.opponent?.timeline?.finalTime || 0, 1)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
