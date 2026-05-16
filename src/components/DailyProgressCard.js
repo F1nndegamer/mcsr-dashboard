@@ -143,6 +143,7 @@ const DailyProgressCard = ({ rankedMatches }) => {
       </div>
       <p className="mt-4 text-[11px] text-gray-500">(I started the challenge on May 11th, 2026)</p>
 
+
       <div className="mt-6 border-t border-gray-700 pt-5">
         <p className="text-xs text-gray-400 mb-3">Daily breakdown since May 11th</p>
         <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
