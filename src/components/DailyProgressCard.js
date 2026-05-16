@@ -1,31 +1,26 @@
 import React, { useMemo } from 'react';
 
-const DailyProgressCard = ({ rankedRecentMatches }) => {
-  const DAILY_GOAL = 2;
+const DAILY_GOAL = 2;
 
-  // Calculate streaks from actual match data
-  const { todayMatches, succeededDays, failedDays } = useMemo(() => {
-    if (!Array.isArray(rankedRecentMatches) || rankedRecentMatches.length === 0) {
-      return { todayMatches: 0, succeededDays: 0, failedDays: 0 };
+const getDateKey = (timestampSeconds) => {
+  if (typeof timestampSeconds !== 'number') return null;
+
+  return new Date(timestampSeconds * 1000).toISOString().split('T')[0];
+};
+
+const DailyProgressCard = ({ rankedMatches }) => {
+
+  const { todayMatches, succeededDays, failedDays, trackedDays } = useMemo(() => {
+    if (!Array.isArray(rankedMatches) || rankedMatches.length === 0) {
+      return { todayMatches: 0, succeededDays: 0, failedDays: 0, trackedDays: 0 };
     }
 
-    // Get today's date at midnight
-    const getTodayMidnight = () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return today.getTime();
-    };
-
-    const todayMidnight = getTodayMidnight();
-
-    // Group matches by date
     const matchesByDate = {};
 
-    rankedRecentMatches.forEach((match) => {
-      const matchTime = typeof match.date === 'number' ? match.date * 1000 : 0;
-      const matchDate = new Date(matchTime);
-      matchDate.setHours(0, 0, 0, 0);
-      const dateString = matchDate.toISOString().split('T')[0];
+    rankedMatches.forEach((match) => {
+      const dateString = getDateKey(match.date);
+
+      if (!dateString) return;
 
       if (!matchesByDate[dateString]) {
         matchesByDate[dateString] = [];
@@ -33,45 +28,29 @@ const DailyProgressCard = ({ rankedRecentMatches }) => {
       matchesByDate[dateString].push(match);
     });
 
-    // Count today's matches
-    const todayDateString = new Date(todayMidnight).toISOString().split('T')[0];
+    const todayDateString = new Date().toISOString().split('T')[0];
     const todayCount = matchesByDate[todayDateString]?.length || 0;
 
-    // Calculate streaks starting from today going backwards
     let succeeded = 0;
     let failed = 0;
 
-    const sortedDates = Object.keys(matchesByDate).sort().reverse();
-
-    for (const dateString of sortedDates) {
-      const matchCount = matchesByDate[dateString].length;
-      const dayMidnight = new Date(dateString).getTime();
-
-      // Only count days from today onwards (going backwards in time to start)
-      if (dayMidnight > todayMidnight) {
-        // Future date, skip
-        continue;
-      }
+    Object.values(matchesByDate).forEach((dailyMatches) => {
+      const matchCount = dailyMatches.length;
 
       if (matchCount >= DAILY_GOAL) {
         succeeded++;
       } else {
         failed++;
       }
-
-      // Stop counting after we've found a day before today
-      // This creates the "from today and after" effect
-      if (dayMidnight < todayMidnight) {
-        break;
-      }
-    }
+    });
 
     return {
       todayMatches: todayCount,
       succeededDays: succeeded,
       failedDays: failed,
+      trackedDays: Object.keys(matchesByDate).length,
     };
-  }, [rankedRecentMatches]);
+  }, [rankedMatches]);
 
   const remainingMatches = Math.max(0, DAILY_GOAL - todayMatches);
   const goalMet = todayMatches >= DAILY_GOAL;
@@ -98,14 +77,15 @@ const DailyProgressCard = ({ rankedRecentMatches }) => {
       {/* Streaks */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <p className="text-xs text-gray-400 mb-2">Succeeded Days</p>
+          <p className="text-xs text-gray-400 mb-2">Days at Goal</p>
           <p className="text-3xl font-bold text-minecraft-green">{succeededDays}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400 mb-2">Failed Days</p>
+          <p className="text-xs text-gray-400 mb-2">Missed Days</p>
           <p className="text-3xl font-bold text-red-400">{failedDays}</p>
         </div>
       </div>
+      <p className="mt-4 text-[11px] text-gray-500">Checked {trackedDays} ranked match days total.</p>
     </div>
   );
 };

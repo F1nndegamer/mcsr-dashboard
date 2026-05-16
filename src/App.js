@@ -144,10 +144,14 @@ const buildAllTimeEloProgression = (rankedMatches, userUuid) => {
         return points;
       }
 
+      // Use match end timestamp (start + result duration) so points represent Elo after the match
+      const startMs = typeof match.date === 'number' ? match.date * 1000 : null;
+      const endMs = startMs != null && typeof match.result?.time === 'number' ? startMs + match.result.time : startMs;
+
       points.push({
         id: match.id,
         season: match.season,
-        date: match.date * 1000,
+        date: endMs,
         elo: userChange.eloRate,
         change: typeof userChange.change === 'number' ? userChange.change : 0,
         resultTime: match.result?.time ?? null,
@@ -378,7 +382,7 @@ const App = () => {
       <div className="lg:col-span-3 space-y-6">
         <ProfileCard user={user} />
         <MatchRecordCard wins={wins} losses={losses} played={played} season={seasonNumber} />
-        <DailyProgressCard rankedRecentMatches={rankedRecentMatches} />
+        <DailyProgressCard rankedMatches={allTimeRankedMatches} />
         <ActivityCard timestamp={user.timestamp} />
       </div>
 
