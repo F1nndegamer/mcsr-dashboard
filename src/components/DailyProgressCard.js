@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 
 const DAILY_GOAL = 2;
-const START_DATE_UTC = Date.UTC(2026, 3, 29);
+const START_DATE_UTC = Date.UTC(2026, 4, 11);
 const MONTH_NAMES = [
   'January',
   'February',
@@ -141,10 +141,10 @@ const DailyProgressCard = ({ rankedMatches }) => {
           <p className="text-3xl font-bold text-red-400">{failedDays}</p>
         </div>
       </div>
-      <p className="mt-4 text-[11px] text-gray-500">Checked {trackedDays} ranked match days total.</p>
+      <p className="mt-4 text-[11px] text-gray-500">(I started the challenge on May 11th, 2026)</p>
 
       <div className="mt-6 border-t border-gray-700 pt-5">
-        <p className="text-xs text-gray-400 mb-3">Daily breakdown since April 29</p>
+        <p className="text-xs text-gray-400 mb-3">Daily breakdown since May 11th</p>
         <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
           {dayEntries.map((day) => (
             <div key={day.dateKey} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm">
