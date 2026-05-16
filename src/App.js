@@ -13,7 +13,7 @@ import ActivityCard from './components/ActivityCard';
 import WeeklyRaceCard from './components/WeeklyRaceCard';
 import DailyProgressCard from './components/DailyProgressCard';
 import { buildSelectedTimelineRows } from './components/timelineUtils';
-
+import { SpeedInsights } from "@vercel/speed-insights/react"
 const API_BASE = 'https://api.mcsrranked.com';
 const DEFAULT_USER = 'F1nndegamer';
 const RANKED_MATCH_TYPE = 2;

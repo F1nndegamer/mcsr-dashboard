@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 
 const DAILY_GOAL = 2;
-const START_DATE_UTC = Date.UTC(new Date().getUTCFullYear(), 3, 29);
+const START_DATE_UTC = Date.UTC(2026, 3, 29);
 const MONTH_NAMES = [
   'January',
   'February',
@@ -24,7 +24,7 @@ const getDateKey = (timestampSeconds) => {
 };
 
 const formatDayLabel = (dateKey) => {
-  const [year, month, day] = dateKey.split('-').map((value) => Number(value));
+  const [, month, day] = dateKey.split('-').map((value) => Number(value));
   const monthName = MONTH_NAMES[month - 1] || '';
   const daySuffix = day % 10 === 1 && day % 100 !== 11 ? 'st' : day % 10 === 2 && day % 100 !== 12 ? 'nd' : day % 10 === 3 && day % 100 !== 13 ? 'rd' : 'th';
 
