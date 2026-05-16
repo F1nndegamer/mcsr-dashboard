@@ -45,7 +45,7 @@ const buildDateRange = () => {
 
 const DailyProgressCard = ({ rankedMatches }) => {
 
-  const { todayMatches, succeededDays, failedDays, trackedDays, dayEntries } = useMemo(() => {
+  const { todayMatches, succeededDays, failedDays, dayEntries } = useMemo(() => {
     if (!Array.isArray(rankedMatches) || rankedMatches.length === 0) {
       const emptyDates = buildDateRange();
 
@@ -53,7 +53,6 @@ const DailyProgressCard = ({ rankedMatches }) => {
         todayMatches: 0,
         succeededDays: 0,
         failedDays: emptyDates.length,
-        trackedDays: 0,
         dayEntries: emptyDates.map((dateKey) => ({
           dateKey,
           label: formatDayLabel(dateKey),
@@ -103,7 +102,6 @@ const DailyProgressCard = ({ rankedMatches }) => {
       todayMatches: todayCount,
       succeededDays: succeeded,
       failedDays: failed,
-      trackedDays: Object.keys(matchesByDate).length,
       dayEntries,
     };
   }, [rankedMatches]);
