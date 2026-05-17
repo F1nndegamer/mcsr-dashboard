@@ -20,6 +20,7 @@ const PRIVATE_MATCH_TYPE = 3;
 const MATCHES_PAGE_SIZE = 100;
 const MAX_RANKED_PAGES = 450;
 
+
 const RecentTypesSummaryCard = ({ matches }) => {
   const ranked = matches.filter((match) => match.type === RANKED_MATCH_TYPE);
   const privates = matches.filter((match) => match.type === PRIVATE_MATCH_TYPE);
