@@ -22,7 +22,7 @@ const getMatchResult = (match, userUuid) => {
     return { label: 'FORFEIT', color: 'text-red-400' };
   }
 
-  if (!match.result?.uuid) return { label: 'DRAW', color: 'text-yellow-300' };
+  if (!match.result?.uuid) return { label: 'DRAW', color: 'text-blue-300' };
   if (match.result.uuid === userUuid) return { label: 'WIN', color: 'text-minecraft-green' };
   return { label: 'LOSS', color: 'text-orange-300' };
 };

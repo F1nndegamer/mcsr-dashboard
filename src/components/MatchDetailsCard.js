@@ -40,6 +40,20 @@ const getResultLabel = (match, userUuid) => {
   return 'Loss';
 };
 
+const getResultColor = (match, userUuid) => {
+  if (!match) return 'text-gray-100';
+  if (match.forfeited) {
+    if (match.result?.uuid) {
+      return match.result.uuid === userUuid ? 'text-minecraft-green' : 'text-orange-300';
+    }
+    return 'text-red-400';
+  }
+
+  if (!match.result?.uuid) return 'text-blue-300';
+  if (match.result.uuid === userUuid) return 'text-minecraft-green';
+  return 'text-orange-300';
+};
+
 const buildTimelineBlocks = (timeline, referenceTime) => {
   if (!timeline || typeof timeline.finalTime !== 'number' || timeline.finalTime <= 0) return [];
 
@@ -151,7 +165,13 @@ const MatchDetailsCard = ({
         </div>
         <div>
           <p className="text-xs text-gray-400">Result</p>
-          <p className="text-gray-100">{getResultLabel(match, userUuid)}</p>
+          {
+            (() => {
+              const resultLabel = getResultLabel(match, userUuid);
+              const resultColor = getResultColor(match, userUuid);
+              return <p className={resultColor}>{resultLabel}</p>;
+            })()
+          }
         </div>
         <div>
           <p className="text-xs text-gray-400">Time</p>
