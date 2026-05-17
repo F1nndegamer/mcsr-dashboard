@@ -28,7 +28,13 @@ const getUserChange = (match, userUuid) => {
 
 const getResultLabel = (match, userUuid) => {
   if (!match) return 'N/A';
-  if (match.forfeited) return 'Forfeit';
+  if (match.forfeited) {
+    if (match.result?.uuid) {
+      return match.result.uuid === userUuid ? 'Win (Forfeit)' : 'Loss (Forfeit)';
+    }
+    return 'Forfeit';
+  }
+
   if (!match.result?.uuid) return 'Draw';
   if (match.result.uuid === userUuid) return 'Win';
   return 'Loss';

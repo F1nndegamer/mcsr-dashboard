@@ -14,7 +14,14 @@ const formatDuration = (ms) => {
 };
 
 const getMatchResult = (match, userUuid) => {
-  if (match.forfeited) return { label: 'FORFEIT', color: 'text-red-400' };
+  if (match.forfeited) {
+    if (match.result?.uuid) {
+      if (match.result.uuid === userUuid) return { label: 'WIN (Forfeit)', color: 'text-minecraft-green' };
+      return { label: 'LOSS (Forfeit)', color: 'text-orange-300' };
+    }
+    return { label: 'FORFEIT', color: 'text-red-400' };
+  }
+
   if (!match.result?.uuid) return { label: 'DRAW', color: 'text-yellow-300' };
   if (match.result.uuid === userUuid) return { label: 'WIN', color: 'text-minecraft-green' };
   return { label: 'LOSS', color: 'text-orange-300' };
