@@ -36,7 +36,7 @@ const buildDateRange = () => {
   const todayUtcMidnight = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const dates = [];
 
-  for (let current = START_DATE_UTC; current <= todayUtcMidnight; current += 24 * 60 * 60 * 1000) {
+  for (let current = START_DATE_UTC; current < todayUtcMidnight; current += 24 * 60 * 60 * 1000) {
     dates.push(new Date(current).toISOString().split('T')[0]);
   }
 
