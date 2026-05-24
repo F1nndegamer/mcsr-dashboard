@@ -1,49 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import ProfileCard from './components/ProfileCard';
-import MatchRecordCard from './components/MatchRecordCard';
-import PersonalBestCard from './components/PersonalBestCard';
-import EloProgressionCard from './components/EloProgressionCard';
-import EloInsightsCard from './components/EloInsightsCard';
-import SeasonPeaksCard from './components/SeasonPeaksCard';
-import MatchDetailsCard from './components/MatchDetailsCard';
-import AverageTimelinesCard from './components/AverageTimelinesCard';
-import ConnectionsCard from './components/ConnectionsCard';
-import RecentMatchesCard from './components/RecentMatchesCard';
-import ActivityCard from './components/ActivityCard';
-import WeeklyRaceCard from './components/WeeklyRaceCard';
-import DailyProgressCard from './components/DailyProgressCard';
-import { buildSelectedTimelineRows } from './components/timelineUtils';
-const API_BASE = 'https://api.mcsrranked.com';
-const DEFAULT_USER = 'F1nndegamer';
+import React, { useEffect, useState } from "react";
+import ProfileCard from "./components/ProfileCard";
+import MatchRecordCard from "./components/MatchRecordCard";
+import PersonalBestCard from "./components/PersonalBestCard";
+import EloProgressionCard from "./components/EloProgressionCard";
+import EloInsightsCard from "./components/EloInsightsCard";
+import SeasonPeaksCard from "./components/SeasonPeaksCard";
+import MatchDetailsCard from "./components/MatchDetailsCard";
+import AverageTimelinesCard from "./components/AverageTimelinesCard";
+import ConnectionsCard from "./components/ConnectionsCard";
+import RecentMatchesCard from "./components/RecentMatchesCard";
+import ActivityCard from "./components/ActivityCard";
+import WeeklyRaceCard from "./components/WeeklyRaceCard";
+import DailyProgressCard from "./components/DailyProgressCard";
+import NetherEnterBySeedCard from "./components/NetherEnterBySeedCard";
+import { buildSelectedTimelineRows } from "./components/timelineUtils";
+const API_BASE = "https://api.mcsrranked.com";
+const DEFAULT_USER = "F1nndegamer";
 const RANKED_MATCH_TYPE = 2;
 const PRIVATE_MATCH_TYPE = 3;
 const MATCHES_PAGE_SIZE = 100;
 const MAX_RANKED_PAGES = 450;
 
 
-const RecentTypesSummaryCard = ({ matches }) => {
-  const ranked = matches.filter((match) => match.type === RANKED_MATCH_TYPE);
-  const privates = matches.filter((match) => match.type === PRIVATE_MATCH_TYPE);
-
-  return (
-    <div className="glass-panel p-6">
-      <h3 className="text-xs font-bold uppercase mb-4">Recent Queue Split</h3>
-      <div className="space-y-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Ranked</span>
-          <span className="text-minecraft-green font-semibold">{ranked.length}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Private</span>
-          <span className="text-minecraft-gold font-semibold">{privates.length}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const resolveUsername = () => {
-  const queryUser = new URLSearchParams(window.location.search).get('user');
+  const queryUser = new URLSearchParams(window.location.search).get("user");
   return queryUser || DEFAULT_USER;
 };
 
@@ -65,10 +45,10 @@ const buildSeasonEloProgression = (seasonResult) => {
 
   const currentData = seasonResult.last
     ? {
-        id: 'current',
+        id: "current",
         season: null,
         date: null,
-        label: 'Now',
+        label: "Now",
         elo: seasonResult.last.eloRate,
         change: null,
         resultTime: null,
@@ -92,19 +72,21 @@ const fetchAllRankedMatches = async (username) => {
   for (let page = 0; page < MAX_RANKED_PAGES; page += 1) {
     const params = new URLSearchParams({
       count: String(MATCHES_PAGE_SIZE),
-      sort: 'oldest',
+      sort: "oldest",
       type: String(RANKED_MATCH_TYPE),
     });
 
     if (afterCursor) {
-      params.set('after', String(afterCursor));
+      params.set("after", String(afterCursor));
     }
 
-    const response = await fetch(`${API_BASE}/users/${username}/matches?${params.toString()}`);
+    const response = await fetch(
+      `${API_BASE}/users/${username}/matches?${params.toString()}`,
+    );
     const result = await response.json();
 
-    if (result.status !== 'success' || !Array.isArray(result.data)) {
-      throw new Error('Could not load all-time ranked match history.');
+    if (result.status !== "success" || !Array.isArray(result.data)) {
+      throw new Error("Could not load all-time ranked match history.");
     }
 
     const pageMatches = result.data;
@@ -138,22 +120,27 @@ const buildAllTimeEloProgression = (rankedMatches, userUuid) => {
       return a.date - b.date;
     })
     .reduce((points, match) => {
-      const userChange = (match.changes || []).find((entry) => entry.uuid === userUuid);
+      const userChange = (match.changes || []).find(
+        (entry) => entry.uuid === userUuid,
+      );
 
-      if (typeof userChange?.eloRate !== 'number') {
+      if (typeof userChange?.eloRate !== "number") {
         return points;
       }
 
       // Use match end timestamp (start + result duration) so points represent Elo after the match
-      const startMs = typeof match.date === 'number' ? match.date * 1000 : null;
-      const endMs = startMs != null && typeof match.result?.time === 'number' ? startMs + match.result.time : startMs;
+      const startMs = typeof match.date === "number" ? match.date * 1000 : null;
+      const endMs =
+        startMs != null && typeof match.result?.time === "number"
+          ? startMs + match.result.time
+          : startMs;
 
       points.push({
         id: match.id,
         season: match.season,
         date: endMs,
         elo: userChange.eloRate,
-        change: typeof userChange.change === 'number' ? userChange.change : 0,
+        change: typeof userChange.change === "number" ? userChange.change : 0,
         resultTime: match.result?.time ?? null,
         forfeited: Boolean(match.forfeited),
         match,
@@ -171,7 +158,7 @@ const buildAllTimeEloProgression = (rankedMatches, userUuid) => {
 const getBestMatchRank = (matches) => {
   const ranks = matches
     .map((match) => match?.rank?.allTime)
-    .filter((rank) => typeof rank === 'number');
+    .filter((rank) => typeof rank === "number");
 
   return ranks.length ? Math.min(...ranks) : null;
 };
@@ -187,8 +174,10 @@ const App = () => {
   const [selectedMatchDetails, setSelectedMatchDetails] = useState(null);
   const [matchDetailsCache, setMatchDetailsCache] = useState({});
   const [isLoadingMatchDetails, setIsLoadingMatchDetails] = useState(false);
-  const [error, setError] = useState('');
-  const [isLoadingAverageTimelines, setIsLoadingAverageTimelines] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoadingAverageTimelines, setIsLoadingAverageTimelines] =
+    useState(false);
+  const [isLoadingNetherBySeed, setIsLoadingNetherBySeed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const username = resolveUsername();
 
@@ -202,32 +191,38 @@ const App = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        setError('');
+        setError("");
 
         const userResponse = await fetch(`${API_BASE}/users/${username}`);
         const userData = await userResponse.json();
 
-        if (userData.status !== 'success' || !userData.data) {
-          throw new Error('Could not load user profile from API.');
+        if (userData.status !== "success" || !userData.data) {
+          throw new Error("Could not load user profile from API.");
         }
 
-        const [matchesResponse, rankedRecentResponse, rankedMatchData] = await Promise.all([
-          fetch(`${API_BASE}/users/${username}/matches?count=50&sort=newest`),
-          fetch(`${API_BASE}/users/${username}/matches?count=50&sort=newest&type=${RANKED_MATCH_TYPE}`),
-          fetchAllRankedMatches(username),
-        ]);
+        const [matchesResponse, rankedRecentResponse, rankedMatchData] =
+          await Promise.all([
+            fetch(`${API_BASE}/users/${username}/matches?count=50&sort=newest`),
+            fetch(
+              `${API_BASE}/users/${username}/matches?count=50&sort=newest&type=${RANKED_MATCH_TYPE}`,
+            ),
+            fetchAllRankedMatches(username),
+          ]);
 
         const [matchData, rankedRecentData] = await Promise.all([
           matchesResponse.json(),
           rankedRecentResponse.json(),
         ]);
 
-        if (matchData.status !== 'success' || !Array.isArray(matchData.data)) {
-          throw new Error('Could not load matches from API.');
+        if (matchData.status !== "success" || !Array.isArray(matchData.data)) {
+          throw new Error("Could not load matches from API.");
         }
 
-        if (rankedRecentData.status !== 'success' || !Array.isArray(rankedRecentData.data)) {
-          throw new Error('Could not load recent ranked matches from API.');
+        if (
+          rankedRecentData.status !== "success" ||
+          !Array.isArray(rankedRecentData.data)
+        ) {
+          throw new Error("Could not load recent ranked matches from API.");
         }
 
         setUser(userData.data);
@@ -235,7 +230,7 @@ const App = () => {
         setRankedRecentMatches(rankedRecentData.data);
         setAllTimeRankedMatches(rankedMatchData);
       } catch (fetchError) {
-        setError(fetchError.message || 'Unexpected API error.');
+        setError(fetchError.message || "Unexpected API error.");
       } finally {
         setIsLoading(false);
       }
@@ -250,7 +245,9 @@ const App = () => {
     const fetchAverageTimelineMatches = async () => {
       if (!rankedRecentMatches.length) return;
 
-      const recentIds = rankedRecentMatches.slice(0, 50).map((match) => match.id);
+      const recentIds = rankedRecentMatches
+        .slice(0, 50)
+        .map((match) => match.id);
       const missingIds = recentIds.filter((id) => !matchDetailsCache[id]);
 
       if (missingIds.length === 0) return;
@@ -263,11 +260,13 @@ const App = () => {
             try {
               const response = await fetch(`${API_BASE}/matches/${id}`);
               const result = await response.json();
-              return result.status === 'success' && result.data ? result.data : null;
+              return result.status === "success" && result.data
+                ? result.data
+                : null;
             } catch {
               return null;
             }
-          })
+          }),
         );
 
         if (cancelled) return;
@@ -296,6 +295,68 @@ const App = () => {
   }, [rankedRecentMatches, matchDetailsCache]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchQueueTimelineMatches = async () => {
+      const queueMatches = matches
+        .filter(
+          (match) =>
+            match.type === RANKED_MATCH_TYPE ||
+            match.type === PRIVATE_MATCH_TYPE,
+        )
+        .slice(0, 50);
+
+      if (!queueMatches.length) return;
+
+      const missingIds = queueMatches
+        .map((match) => match.id)
+        .filter((id) => !matchDetailsCache[id]);
+
+      if (missingIds.length === 0) return;
+
+      try {
+        setIsLoadingNetherBySeed(true);
+
+        const fetched = await Promise.all(
+          missingIds.map(async (id) => {
+            try {
+              const response = await fetch(`${API_BASE}/matches/${id}`);
+              const result = await response.json();
+              return result.status === "success" && result.data
+                ? result.data
+                : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        const fetchedMap = fetched.reduce((acc, item) => {
+          if (item?.id) acc[item.id] = item;
+          return acc;
+        }, {});
+
+        if (Object.keys(fetchedMap).length > 0) {
+          setMatchDetailsCache((previous) => ({
+            ...previous,
+            ...fetchedMap,
+          }));
+        }
+      } finally {
+        if (!cancelled) setIsLoadingNetherBySeed(false);
+      }
+    };
+
+    fetchQueueTimelineMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matches, matchDetailsCache]);
+
+  useEffect(() => {
     const selectedId = selectedMatchId;
     if (!selectedId) {
       setSelectedMatchDetails(null);
@@ -316,7 +377,7 @@ const App = () => {
         const response = await fetch(`${API_BASE}/matches/${selectedId}`);
         const result = await response.json();
 
-        if (result.status === 'success' && result.data) {
+        if (result.status === "success" && result.data) {
           setSelectedMatchDetails(result.data);
           setMatchDetailsCache((previous) => ({
             ...previous,
@@ -339,7 +400,9 @@ const App = () => {
   if (isLoading) {
     return (
       <main className="min-h-screen p-6 max-w-[1600px] mx-auto">
-        <div className="glass-panel p-6 text-center text-gray-300">Loading profile data...</div>
+        <div className="glass-panel p-6 text-center text-gray-300">
+          Loading profile data...
+        </div>
       </main>
     );
   }
@@ -348,7 +411,7 @@ const App = () => {
     return (
       <main className="min-h-screen p-6 max-w-[1600px] mx-auto">
         <div className="glass-panel p-6 text-center text-red-300">
-          {error || 'No data available for this user.'}
+          {error || "No data available for this user."}
         </div>
       </main>
     );
@@ -359,20 +422,46 @@ const App = () => {
   const wins = seasonStats.wins?.ranked || 0;
   const losses = seasonStats.loses?.ranked || 0;
   const played = seasonStats.playedMatches?.ranked || wins + losses;
-  const allTimeEloProgression = buildAllTimeEloProgression(allTimeRankedMatches, user.uuid);
-  const seasonFallbackProgression = buildSeasonEloProgression(user.seasonResult);
-  const eloProgression = allTimeEloProgression.length > 0 ? allTimeEloProgression : seasonFallbackProgression;
+  const allTimeEloProgression = buildAllTimeEloProgression(
+    allTimeRankedMatches,
+    user.uuid,
+  );
+  const seasonFallbackProgression = buildSeasonEloProgression(
+    user.seasonResult,
+  );
+  const eloProgression =
+    allTimeEloProgression.length > 0
+      ? allTimeEloProgression
+      : seasonFallbackProgression;
   const selectedFromHover = hoveredEloPoint?.match || null;
-  const detailedMatch = selectedMatchId ? selectedMatchDetails || selectedMatchPreview : selectedFromHover;
-  const selectedTimelineMatches = selectedMatchId && detailedMatch ? [detailedMatch] : [];
-  const timelineRows = buildSelectedTimelineRows(selectedTimelineMatches, user.uuid);
+  const detailedMatch = selectedMatchId
+    ? selectedMatchDetails || selectedMatchPreview
+    : selectedFromHover;
+  const selectedTimelineMatches =
+    selectedMatchId && detailedMatch ? [detailedMatch] : [];
+  const timelineRows = buildSelectedTimelineRows(
+    selectedTimelineMatches,
+    user.uuid,
+  );
   const recentDetailedMatches = rankedRecentMatches
     .slice(0, 50)
     .map((match) => matchDetailsCache[match.id] || null)
     .filter(Boolean);
-  const averageTimelineRows = buildSelectedTimelineRows(recentDetailedMatches, user.uuid);
+  const averageTimelineRows = buildSelectedTimelineRows(
+    recentDetailedMatches,
+    user.uuid,
+  );
+  const queueWindowMatches = matches
+    .filter(
+      (match) =>
+        match.type === RANKED_MATCH_TYPE || match.type === PRIVATE_MATCH_TYPE,
+    )
+    .slice(0, 50);
+  const detailedQueueMatches = queueWindowMatches
+    .map((match) => matchDetailsCache[match.id] || null)
+    .filter(Boolean);
   const bestMatchRank = getBestMatchRank(matches);
-  const seasonNumber = matches[0]?.season || 'Current';
+  const seasonNumber = matches[0]?.season || "Current";
 
   const bestSeasonTime = seasonStats.bestTime?.ranked ?? null;
   const bestAllTime = totalStats.bestTime?.ranked ?? null;
@@ -381,9 +470,15 @@ const App = () => {
     <main className="min-h-screen p-6 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-3 space-y-6">
         <ProfileCard user={user} />
-        <MatchRecordCard wins={wins} losses={losses} played={played} season={seasonNumber} />
+        <MatchRecordCard
+          wins={wins}
+          losses={losses}
+          played={played}
+          season={seasonNumber}
+        />
         <DailyProgressCard rankedMatches={allTimeRankedMatches} />
         <ActivityCard timestamp={user.timestamp} />
+        <EloInsightsCard data={allTimeEloProgression} />
       </div>
 
       <div className="lg:col-span-6 space-y-6">
@@ -402,33 +497,44 @@ const App = () => {
           }}
           selectedMatchId={selectedMatchId}
         />
-        <MatchDetailsCard
-          match={detailedMatch}
-          userUuid={user.uuid}
-          timelineRows={timelineRows}
-          isLoadingDetails={isLoadingMatchDetails}
-          sourceLabel={selectedMatchId ? 'Selected Match' : hoveredEloPoint?.match ? 'Hover Preview' : 'No Match'}
-        />
         <AverageTimelinesCard
           timelineRows={averageTimelineRows}
           isLoading={isLoadingAverageTimelines}
           totalWindow={Math.min(rankedRecentMatches.length, 50)}
         />
+        <MatchDetailsCard
+          match={detailedMatch}
+          userUuid={user.uuid}
+          timelineRows={timelineRows}
+          isLoadingDetails={isLoadingMatchDetails}
+          sourceLabel={
+            selectedMatchId
+              ? "Selected Match"
+              : hoveredEloPoint?.match
+                ? "Hover Preview"
+                : "No Match"
+          }
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <EloInsightsCard data={allTimeEloProgression} />
-          <SeasonPeaksCard data={allTimeEloProgression} />
+          {/* <SeasonPeaksCard data={allTimeEloProgression} /> */}
         </div>
       </div>
 
       <div className="lg:col-span-3 space-y-6">
         <ConnectionsCard connections={user.connections} />
-        <WeeklyRaceCard weeklyRaces={user.weeklyRaces} />
-        <RecentTypesSummaryCard matches={matches} />
+        {/* <WeeklyRaceCard weeklyRaces={user.weeklyRaces} /> */}
         <RecentMatchesCard
           matches={matches}
           userUuid={user.uuid}
           onMatchSelect={handleMatchSelect}
           selectedMatchId={selectedMatchId}
+        />
+        <NetherEnterBySeedCard
+          matches={detailedQueueMatches}
+          userUuid={user.uuid}
+          totalWindow={queueWindowMatches.length}
+          isLoading={isLoadingNetherBySeed}
         />
       </div>
     </main>
