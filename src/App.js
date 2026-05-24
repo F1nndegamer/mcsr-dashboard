@@ -19,7 +19,6 @@ const PRIVATE_MATCH_TYPE = 3;
 const MATCHES_PAGE_SIZE = 100;
 const MAX_RANKED_PAGES = 450;
 
-
 const resolveUsername = () => {
   const queryUser = new URLSearchParams(window.location.search).get("user");
   return queryUser || DEFAULT_USER;
@@ -297,11 +296,7 @@ const App = () => {
 
     const fetchQueueTimelineMatches = async () => {
       const queueMatches = matches
-        .filter(
-          (match) =>
-            match.type === RANKED_MATCH_TYPE ||
-            match.type === PRIVATE_MATCH_TYPE,
-        )
+        .filter((match) => match.type === RANKED_MATCH_TYPE)
         .slice(0, 50);
 
       if (!queueMatches.length) return;
@@ -450,10 +445,7 @@ const App = () => {
     user.uuid,
   );
   const queueWindowMatches = matches
-    .filter(
-      (match) =>
-        match.type === RANKED_MATCH_TYPE || match.type === PRIVATE_MATCH_TYPE,
-    )
+    .filter((match) => match.type === RANKED_MATCH_TYPE)
     .slice(0, 50);
   const detailedQueueMatches = queueWindowMatches
     .map((match) => matchDetailsCache[match.id] || null)

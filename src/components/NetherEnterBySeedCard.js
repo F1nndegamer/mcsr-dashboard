@@ -21,7 +21,8 @@ const NetherEnterBySeedCard = ({
     const buckets = {};
 
     matches.forEach((match) => {
-      if (!match || (match.type !== 2 && match.type !== 3)) return;
+      // Only consider ranked matches
+      if (!match || match.type !== 2) return;
 
       const timeline = getTimelineDataForPlayer(match, userUuid);
       const netherEnter = timeline?.phaseTimes?.nether;
