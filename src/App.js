@@ -15,7 +15,6 @@ import { buildSelectedTimelineRows } from "./components/timelineUtils";
 const API_BASE = "https://api.mcsrranked.com";
 const DEFAULT_USER = "F1nndegamer";
 const RANKED_MATCH_TYPE = 2;
-const PRIVATE_MATCH_TYPE = 3;
 const MATCHES_PAGE_SIZE = 100;
 const MAX_RANKED_PAGES = 450;
 
