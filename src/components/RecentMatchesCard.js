@@ -17,14 +17,14 @@ const getMatchResult = (match, userUuid) => {
   if (match.forfeited) {
     if (match.result?.uuid) {
       if (match.result.uuid === userUuid) return { label: 'WIN (Forfeit)', color: 'text-minecraft-green' };
-      return { label: 'LOSS (Forfeit)', color: 'text-orange-300' };
+      return { label: 'LOSS (Forfeit)', color: 'text-red-300' };
     }
-    return { label: 'FORFEIT', color: 'text-red-400' };
+    return { label: 'DRAW', color: 'text-blue-300' };
   }
 
   if (!match.result?.uuid) return { label: 'DRAW', color: 'text-blue-300' };
-  if (match.result.uuid === userUuid) return { label: 'WIN', color: 'text-minecraft-green' };
-  return { label: 'LOSS', color: 'text-orange-300' };
+  if (match.result.uuid === userUuid) return { label: formatDuration(match.result.time), color: 'text-minecraft-green' };
+  return { label: 'LOSS', color: 'text-red-300' };
 };
 
 const RecentMatchesCard = ({ matches, userUuid, onMatchSelect, selectedMatchId }) => {
