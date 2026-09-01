@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 
 const DAILY_GOAL = 2;
-const START_DATE_UTC = Date.UTC(2026, 4, 11);
+const START_DATE_UTC = Date.UTC(2026, 7, 31);
 const MONTH_NAMES = [
   "January",
   "February",
@@ -164,13 +164,13 @@ const DailyProgressCard = ({ rankedMatches }) => {
         </div>
       </div>
       <p className="mt-4 text-[11px] text-gray-500">
-        (I started the challenge on May 11th, 2026)
+        (Challenge restarted on August 31th)
       </p>
 
       <div className="mt-6 border-t border-gray-700 pt-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs text-gray-400">
-            Daily breakdown since May 11th
+            Daily breakdown since August 31t
           </p>
           <button
             type="button"
