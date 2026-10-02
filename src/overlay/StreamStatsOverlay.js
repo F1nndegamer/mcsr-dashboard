@@ -45,8 +45,14 @@ const StatTile = ({ label, value, tone = "default", graph = null }) => {
 
 const EloSparkline = ({ series, netChange }) => {
   const safeSeries = series && series.length > 0 ? series : [0];
-  const min = Math.min(0, ...safeSeries);
-  const max = Math.max(0, ...safeSeries);
+  let min = Math.min(0, ...safeSeries);
+  let max = Math.max(0, ...safeSeries);
+  // Flat series (no runs today): center the baseline instead of pinning it
+  // to the bottom edge of the graph.
+  if (min === max) {
+    min = -1;
+    max = 1;
+  }
   const range = max - min || 1;
   const pad = 8; // viewBox units
 
