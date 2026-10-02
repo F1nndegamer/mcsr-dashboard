@@ -32,6 +32,7 @@ export const resolveOverlayConfig = (search = window.location.search) => {
   const goal = parseNonNegativeInt(params.get("goal"));
   const pollSeconds = parseNonNegativeInt(params.get("poll"));
   const session = parseNonNegativeInt(params.get("session"));
+  const showControls = params.get("controls") === "1";
 
   return {
     title: title || OVERLAY_CONFIG.title,
@@ -43,5 +44,47 @@ export const resolveOverlayConfig = (search = window.location.search) => {
       : OVERLAY_CONFIG.pollIntervalMs,
     sessionStartEpochSeconds:
       session ?? OVERLAY_CONFIG.sessionStartEpochSeconds,
+    showControls,
   };
+};
+
+export const TOTAL_RUNS_STORAGE_KEY = "mcsr-overlay:total-speedruns";
+
+/**
+ * Local hotkey/button edits of the runs counter, persisted so they survive
+ * OBS source reloads. An edit only applies while it matches the same URL
+ * ?total= base; changing the base adopts the new value and discards edits.
+ */
+export const loadStoredTotalRuns = (base) => {
+  try {
+    const raw = window.localStorage.getItem(TOTAL_RUNS_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (parsed?.base !== base) return null;
+
+    const value = Math.floor(Number(parsed.value));
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveStoredTotalRuns = (value, base) => {
+  try {
+    window.localStorage.setItem(
+      TOTAL_RUNS_STORAGE_KEY,
+      JSON.stringify({ value, base }),
+    );
+  } catch {
+    // Storage unavailable (private mode / blocked) — hotkeys still work in-session.
+  }
+};
+
+export const clearStoredTotalRuns = () => {
+  try {
+    window.localStorage.removeItem(TOTAL_RUNS_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
 };

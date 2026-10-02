@@ -1,10 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   API_BASE,
   RANKED_MATCH_TYPE,
   fetchAllRankedMatches,
 } from "../api/mcsrApi";
-import { resolveOverlayConfig } from "./overlayConfig";
+import {
+  clearStoredTotalRuns,
+  loadStoredTotalRuns,
+  resolveOverlayConfig,
+  saveStoredTotalRuns,
+} from "./overlayConfig";
 import {
   computeOverlayStats,
   formatDuration,
@@ -31,11 +36,60 @@ const StreamStatsOverlay = () => {
   const [hasFullHistory, setHasFullHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
+  // URL ?total= is the base; a localStorage override (hotkey/button edits)
+  // wins until it is reset or the base changes.
+  const [totalRuns, setTotalRuns] = useState(
+    () => loadStoredTotalRuns(config.totalSpeedruns) ?? config.totalSpeedruns,
+  );
 
   const sessionStart = useMemo(
     () => config.sessionStartEpochSeconds ?? getUtcStartOfTodaySeconds(),
     [config.sessionStartEpochSeconds],
   );
+
+  const changeTotalRuns = useCallback((delta) => {
+    setTotalRuns((previous) => Math.max(0, previous + delta));
+  }, []);
+
+  const resetTotalRuns = useCallback(() => {
+    setTotalRuns(config.totalSpeedruns);
+  }, [config.totalSpeedruns]);
+
+  // Persist hotkey/button edits so they survive OBS source reloads.
+  // Equal-to-base means "no local edit" -> drop the stored override.
+  useEffect(() => {
+    if (totalRuns === config.totalSpeedruns) {
+      clearStoredTotalRuns();
+    } else {
+      saveStoredTotalRuns(totalRuns, config.totalSpeedruns);
+    }
+  }, [totalRuns, config.totalSpeedruns]);
+
+  // Hotkeys (use OBS's "Interact" window): ↑/+ add, ↓/- subtract,
+  // Backspace/Delete reset to the URL ?total= base.
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === "ArrowUp" || event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        changeTotalRuns(1);
+      } else if (
+        event.key === "ArrowDown" ||
+        event.key === "-" ||
+        event.key === "_"
+      ) {
+        event.preventDefault();
+        changeTotalRuns(-1);
+      } else if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        resetTotalRuns();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [changeTotalRuns, resetTotalRuns]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,7 +187,7 @@ const StreamStatsOverlay = () => {
 
   const progressPercent =
     config.goalRuns > 0
-      ? Math.min(100, (config.totalSpeedruns / config.goalRuns) * 100)
+      ? Math.min(100, (totalRuns / config.goalRuns) * 100)
       : 0;
 
   const statusClass = isOffline
@@ -169,18 +223,51 @@ const StreamStatsOverlay = () => {
             <span className="mcsr-overlay__progress-label">
               Runs Completed
             </span>
-            <span className="mcsr-overlay__progress-count">
-              {config.totalSpeedruns} / {config.goalRuns}
-              <span className="mcsr-overlay__progress-percent">
-                {" "}
-                ({progressPercent.toFixed(1)}%)
+            <div className="mcsr-overlay__progress-right">
+              <span className="mcsr-overlay__progress-count">
+                {totalRuns} / {config.goalRuns}
+                <span className="mcsr-overlay__progress-percent">
+                  {" "}
+                  ({progressPercent.toFixed(1)}%)
+                </span>
               </span>
-            </span>
+              {config.showControls ? (
+                <div className="mcsr-overlay__controls">
+                  <button
+                    type="button"
+                    className="mcsr-overlay__control"
+                    aria-label="Decrease runs completed"
+                    title="Decrease (↓)"
+                    onClick={() => changeTotalRuns(-1)}
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    className="mcsr-overlay__control"
+                    aria-label="Increase runs completed"
+                    title="Increase (↑)"
+                    onClick={() => changeTotalRuns(1)}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="mcsr-overlay__control"
+                    aria-label="Reset runs completed"
+                    title="Reset to ?total= base (Backspace)"
+                    onClick={resetTotalRuns}
+                  >
+                    ⟳
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
           <div
             className="mcsr-overlay__progress-track"
             role="progressbar"
-            aria-valuenow={config.totalSpeedruns}
+            aria-valuenow={totalRuns}
             aria-valuemin={0}
             aria-valuemax={config.goalRuns}
             aria-label="Progress towards goal runs"
@@ -195,7 +282,7 @@ const StreamStatsOverlay = () => {
         <div className="mcsr-overlay__grid">
           <StatTile
             label="Total Speedruns"
-            value={config.totalSpeedruns}
+            value={totalRuns}
             tone="accent"
             hint="LOCAL"
           />

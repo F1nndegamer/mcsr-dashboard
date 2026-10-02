@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import StreamStatsOverlay from "./StreamStatsOverlay";
 
 const USER_UUID = "abc123";
@@ -81,6 +81,7 @@ const createFetchMock = () =>
   });
 
 beforeEach(() => {
+  window.localStorage.clear();
   global.fetch = createFetchMock();
   window.history.pushState(
     {},
@@ -92,6 +93,7 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
   jest.restoreAllMocks();
+  window.localStorage.clear();
   window.history.pushState({}, "", "/");
 });
 
@@ -136,4 +138,31 @@ test("keeps last known stats and flags offline state when a poll fails", async (
   expect(screen.getByText("1750")).toBeInTheDocument();
   expect(screen.getByText("+5")).toBeInTheDocument();
   expect(screen.getByText("RECONNECTING...")).toBeInTheDocument();
+});
+
+test("hotkeys override the ?total= base and persist across remounts", async () => {
+  const first = render(<StreamStatsOverlay />);
+  expect(screen.getByText("500 / 1000")).toBeInTheDocument();
+
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(screen.getByText("502 / 1000")).toBeInTheDocument();
+
+  // Edit persisted to localStorage (value + the URL base it belongs to).
+  const stored = window.localStorage.getItem("mcsr-overlay:total-speedruns");
+  expect(stored).toContain('"value":502');
+  expect(stored).toContain('"base":500');
+
+  // Simulate an OBS source reload: fresh mount restores the override.
+  first.unmount();
+  render(<StreamStatsOverlay />);
+  expect(screen.getByText("502 / 1000")).toBeInTheDocument();
+  expect(screen.getByText("502")).toBeInTheDocument();
+
+  // Backspace resets to the ?total= base and clears the stored override.
+  fireEvent.keyDown(window, { key: "Backspace" });
+  expect(screen.getByText("500 / 1000")).toBeInTheDocument();
+  expect(
+    window.localStorage.getItem("mcsr-overlay:total-speedruns"),
+  ).toBeNull();
 });

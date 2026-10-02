@@ -118,6 +118,40 @@ body.overlay-active #root {
   color: #d8b4fe;
 }
 
+.mcsr-overlay__progress-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Optional on-screen edit controls (enable with ?controls=1) */
+.mcsr-overlay__controls {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.mcsr-overlay__control {
+  font-family: inherit;
+  font-size: 8px;
+  line-height: 1;
+  padding: 3px 5px;
+  color: #d8b4fe;
+  background: #150c1f;
+  border: 2px solid #7a2bd6;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.mcsr-overlay__control:hover {
+  color: #ffffff;
+  border-color: #ff2e97;
+}
+
+.mcsr-overlay__control:focus-visible {
+  outline: 2px solid #ff2e97;
+  outline-offset: 1px;
+}
+
 .mcsr-overlay__progress-track {
   height: 18px;
   background: #120a1c;
