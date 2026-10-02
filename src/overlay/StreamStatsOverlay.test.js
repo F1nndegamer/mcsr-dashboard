@@ -98,17 +98,17 @@ afterEach(() => {
 test("renders config-driven title, progress and computed API stats", async () => {
   render(<StreamStatsOverlay />);
 
-  expect(
-    await screen.findByText("TEST CHALLENGE", undefined, { timeout: 3000 }),
-  ).toBeInTheDocument();
-
-  // Local (non-API) config values.
-  expect(screen.getByText("500")).toBeInTheDocument();
+  // Static config values render immediately.
+  expect(screen.getByText("TEST CHALLENGE")).toBeInTheDocument();
+  expect(screen.getByText("500")).toBeInTheDocument(); // local total (non-API)
   expect(screen.getByText("500 / 1000")).toBeInTheDocument();
 
-  // API-derived values.
+  // Wait for the first poll so API-derived values are on screen.
+  expect(
+    await screen.findByText("1750", undefined, { timeout: 3000 }),
+  ).toBeInTheDocument();
+
   expect(screen.getByText("2")).toBeInTheDocument(); // runs today
-  expect(screen.getByText("1750")).toBeInTheDocument(); // current ELO
   expect(screen.getByText("+5")).toBeInTheDocument(); // ELO diff today (15 - 10)
   expect(screen.getByText("7:30.000")).toBeInTheDocument(); // today avg
   expect(await screen.findByText("10:00.000")).toBeInTheDocument(); // all-time avg
