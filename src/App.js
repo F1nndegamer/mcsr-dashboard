@@ -13,7 +13,7 @@ import DailyProgressCard from "./components/DailyProgressCard";
 import NetherEnterBySeedCard from "./components/NetherEnterBySeedCard";
 import { buildSelectedTimelineRows } from "./components/timelineUtils";
 const API_BASE = "https://api.mcsrranked.com";
-const DEFAULT_USER = "F1nndegamer";
+const DEFAULT_USER = "Awenruns";
 const RANKED_MATCH_TYPE = 2;
 const MATCHES_PAGE_SIZE = 100;
 const MAX_RANKED_PAGES = 450;

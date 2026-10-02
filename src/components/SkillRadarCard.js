@@ -9,7 +9,7 @@ const SkillRadarCard = ({ skillData }) => (
         <RadarChart data={skillData}>
           <PolarGrid stroke="#333" />
           <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 12 }} />
-          <Radar name="F1nn" dataKey="A" stroke="#55ff55" fill="#55ff55" fillOpacity={0.5} />
+          <Radar name="Awen" dataKey="A" stroke="#55ff55" fill="#55ff55" fillOpacity={0.5} />
         </RadarChart>
       </ResponsiveContainer>
     </div>
