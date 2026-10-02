@@ -6,10 +6,10 @@ import { DEFAULT_USER } from "../api/mcsrApi";
  *   ?overlay=1&title=MY%20CHALLENGE&total=985&goal=1000&user=F1nndegamer&poll=20
  */
 export const OVERLAY_CONFIG = {
-  title: "SPEEDRUN 1000 CHALLENGE",
+  title: "1000 SPEEDRUNS CHALLENGE",
   username: DEFAULT_USER,
   // Local (non-API) challenge counter shown in the header/progress bar.
-  totalSpeedruns: 985,
+  totalSpeedruns: 0,
   goalRuns: 1000,
   // Poll every 20s (spec range: 15-30s) so OBS updates without page reloads.
   pollIntervalMs: 20000,
