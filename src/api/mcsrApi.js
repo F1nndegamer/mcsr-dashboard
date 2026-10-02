@@ -1,5 +1,5 @@
 export const API_BASE = "https://api.mcsrranked.com";
-export const DEFAULT_USER = "F1nndegamer";
+export const DEFAULT_USER = "Awenruns";
 export const RANKED_MATCH_TYPE = 2;
 export const MATCHES_PAGE_SIZE = 100;
 export const MAX_RANKED_PAGES = 450;

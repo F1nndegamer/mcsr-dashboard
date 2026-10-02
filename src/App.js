@@ -12,16 +12,12 @@ import ActivityCard from "./components/ActivityCard";
 import DailyProgressCard from "./components/DailyProgressCard";
 import NetherEnterBySeedCard from "./components/NetherEnterBySeedCard";
 import { buildSelectedTimelineRows } from "./components/timelineUtils";
-const API_BASE = "https://api.mcsrranked.com";
-const DEFAULT_USER = "Awenruns";
-const RANKED_MATCH_TYPE = 2;
-const MATCHES_PAGE_SIZE = 100;
-const MAX_RANKED_PAGES = 450;
-
-const resolveUsername = () => {
-  const queryUser = new URLSearchParams(window.location.search).get("user");
-  return queryUser || DEFAULT_USER;
-};
+import {
+  API_BASE,
+  RANKED_MATCH_TYPE,
+  fetchAllRankedMatches,
+  resolveUsername,
+} from "./api/mcsrApi";
 
 const buildSeasonEloProgression = (seasonResult) => {
   if (!seasonResult) return [];
