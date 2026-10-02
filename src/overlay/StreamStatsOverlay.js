@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { API_BASE, RANKED_MATCH_TYPE } from "../api/mcsrApi";
+import { API_BASE, RANKED_MATCH_TYPE, fetchAllRankedMatches } from "../api/mcsrApi";
 import {
   clearStoredTotalRuns,
   loadStoredTotalRuns,
@@ -14,20 +14,98 @@ import {
 } from "./overlayStats";
 import "./StreamStatsOverlay.css";
 
-const StatTile = ({ label, value, tone = "default" }) => (
-  <div className="mcsr-overlay__stat">
-    <span className="mcsr-overlay__stat-label">{label}</span>
-    <span className={`mcsr-overlay__stat-value mcsr-overlay__stat-value--${tone}`}>
+const StatTile = ({ label, value, tone = "default", graph = null }) => {
+  const valueNode = (
+    <span
+      className={`mcsr-overlay__stat-value mcsr-overlay__stat-value--${tone}`}
+    >
       {value}
     </span>
-  </div>
-);
+  );
+
+  if (graph) {
+    return (
+      <div className="mcsr-overlay__stat mcsr-overlay__stat--graph">
+        <div className="mcsr-overlay__stat-side">
+          <span className="mcsr-overlay__stat-label">{label}</span>
+          {valueNode}
+        </div>
+        <div className="mcsr-overlay__stat-graph">{graph}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mcsr-overlay__stat">
+      <span className="mcsr-overlay__stat-label">{label}</span>
+      {valueNode}
+    </div>
+  );
+};
+
+const EloSparkline = ({ series, netChange }) => {
+  const safeSeries = series && series.length > 0 ? series : [0];
+  const min = Math.min(0, ...safeSeries);
+  const max = Math.max(0, ...safeSeries);
+  const range = max - min || 1;
+  const pad = 8; // viewBox units
+
+  const toY = (value) => pad + (1 - (value - min) / range) * (100 - pad * 2);
+
+  const coords =
+    safeSeries.length > 1
+      ? safeSeries.map((value, index) => ({
+          x: (index / (safeSeries.length - 1)) * 100,
+          y: toY(value),
+        }))
+      : [
+          { x: 0, y: toY(safeSeries[0]) },
+          { x: 100, y: toY(safeSeries[0]) },
+        ];
+
+  const points = coords
+    .map(({ x, y }) => `${x.toFixed(2)},${y.toFixed(2)}`)
+    .join(" ");
+  const zeroY = toY(0);
+  const tone =
+    netChange > 0 ? "positive" : netChange < 0 ? "negative" : "neutral";
+  const areaPoints = `0,${zeroY.toFixed(2)} ${points} 100,${zeroY.toFixed(2)}`;
+
+  return (
+    <svg
+      className={`mcsr-overlay__elo-graph mcsr-overlay__elo-graph--${tone}`}
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="ELO change today graph"
+    >
+      <polygon
+        points={areaPoints}
+        className="mcsr-overlay__elo-graph-area"
+      />
+      <line
+        x1="0"
+        y1={zeroY}
+        x2="100"
+        y2={zeroY}
+        className="mcsr-overlay__elo-graph-zero"
+        vectorEffect="non-scaling-stroke"
+      />
+      <polyline
+        points={points}
+        className="mcsr-overlay__elo-graph-line"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+};
 
 const StreamStatsOverlay = () => {
   const config = useMemo(() => resolveOverlayConfig(), []);
 
   const [profile, setProfile] = useState(null);
   const [allMatches, setAllMatches] = useState(() => new Map());
+  const [hasFullHistory, setHasFullHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
   // URL ?total= is the base; a localStorage override (hotkey/button edits)
@@ -142,7 +220,24 @@ const StreamStatsOverlay = () => {
       }
     };
 
+    // One-time crawl on mount so the all-time average is accurate.
+    const loadFullHistory = async () => {
+      try {
+        const history = await fetchAllRankedMatches(config.username);
+        if (cancelled) return;
+        mergeMatches(history);
+        setHasFullHistory(true);
+      } catch (historyError) {
+        if (cancelled) return;
+        console.warn(
+          "[mcsr-overlay] Could not load full history for overall average.",
+          historyError,
+        );
+      }
+    };
+
     pollStats();
+    loadFullHistory();
 
     const intervalId = window.setInterval(pollStats, config.pollIntervalMs);
     return () => {
@@ -157,8 +252,9 @@ const StreamStatsOverlay = () => {
         profile,
         matches: allMatches,
         sessionStart,
+        hasFullHistory,
       }),
-    [profile, allMatches, sessionStart],
+    [profile, allMatches, sessionStart, hasFullHistory],
   );
 
   const progressPercent =
@@ -259,9 +355,25 @@ const StreamStatsOverlay = () => {
             tone="accent"
           />
           <StatTile
-            label="ELO Diff Today"
+            label="ELO Change Today"
             value={profile ? formatEloDelta(stats.eloDeltaToday) : "—"}
             tone={eloTodayTone}
+            graph={
+              <EloSparkline
+                series={stats.eloSeries}
+                netChange={stats.eloDeltaToday}
+              />
+            }
+          />
+          <StatTile
+            label="Avg Match Time"
+            value={
+              stats.overallAvgTime == null
+                ? hasFullHistory
+                  ? "—"
+                  : "…"
+                : formatClock(stats.overallAvgTime)
+            }
           />
           <StatTile
             label="Avg Match Time (Today)"
@@ -270,6 +382,13 @@ const StreamStatsOverlay = () => {
                 ? "—"
                 : formatClock(stats.todayAvgTime)
             }
+          />
+          <StatTile
+            label="Personal Best"
+            value={
+              stats.personalBest == null ? "—" : formatClock(stats.personalBest)
+            }
+            tone="accent"
           />
         </div>
       </section>

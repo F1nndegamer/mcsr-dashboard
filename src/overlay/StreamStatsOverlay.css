@@ -34,14 +34,14 @@ body.overlay-active #root {
 }
 
 .mcsr-overlay {
-  width: min(100%, 1200px);
+  width: min(100%, 1600px);
   min-height: 200px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background: #1d1128;
   color: #ffffff;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 4px solid #b026ff;
   box-shadow:
     0 0 0 4px #120a1c,
@@ -56,7 +56,7 @@ body.overlay-active #root {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 4px solid #ff2e97;
 }
 
@@ -133,11 +133,11 @@ body.overlay-active #root {
   transition: width 0.5s ease-in-out;
 }
 
-/* Stats grid — 4 big tiles */
+/* Stats grid — 6 tiles; ELO-change graph spans two columns */
 
 .mcsr-overlay__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   flex: 1;
 }
@@ -149,6 +149,7 @@ body.overlay-active #root {
   padding: 8px;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 5px;
   min-width: 0;
 }
@@ -178,6 +179,80 @@ body.overlay-active #root {
 
 .mcsr-overlay__stat-value--negative {
   color: #ff5555;
+}
+
+/* ELO-change graph tile (spans two columns) */
+
+.mcsr-overlay__stat--graph {
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  grid-column: span 2;
+}
+
+.mcsr-overlay__stat-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  width: 132px;
+  flex-shrink: 0;
+}
+
+.mcsr-overlay__stat-graph {
+  flex: 1;
+  min-width: 0;
+  background: #120a1c;
+  border: 2px solid rgba(122, 43, 214, 0.65);
+  padding: 3px;
+}
+
+.mcsr-overlay__elo-graph {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mcsr-overlay__elo-graph-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linejoin: miter;
+  stroke-linecap: square;
+}
+
+.mcsr-overlay__elo-graph-area {
+  opacity: 0.16;
+}
+
+.mcsr-overlay__elo-graph-zero {
+  stroke: rgba(233, 213, 255, 0.5);
+  stroke-width: 1;
+  stroke-dasharray: 6 6;
+}
+
+.mcsr-overlay__elo-graph--positive .mcsr-overlay__elo-graph-line {
+  stroke: #55ff55;
+}
+
+.mcsr-overlay__elo-graph--positive .mcsr-overlay__elo-graph-area {
+  fill: #55ff55;
+}
+
+.mcsr-overlay__elo-graph--negative .mcsr-overlay__elo-graph-line {
+  stroke: #ff5555;
+}
+
+.mcsr-overlay__elo-graph--negative .mcsr-overlay__elo-graph-area {
+  fill: #ff5555;
+}
+
+.mcsr-overlay__elo-graph--neutral .mcsr-overlay__elo-graph-line {
+  stroke: #b026ff;
+}
+
+.mcsr-overlay__elo-graph--neutral .mcsr-overlay__elo-graph-area {
+  fill: #b026ff;
 }
 
 /* Optional on-screen edit controls (enable with ?controls=1) */
@@ -210,6 +285,16 @@ body.overlay-active #root {
 }
 
 /* Narrower Browser Source widths */
+
+@media (max-width: 1280px) {
+  .mcsr-overlay {
+    min-height: 0;
+  }
+
+  .mcsr-overlay__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 
 @media (max-width: 768px) {
   .mcsr-overlay {

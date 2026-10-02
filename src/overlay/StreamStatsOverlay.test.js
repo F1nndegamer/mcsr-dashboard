@@ -21,7 +21,10 @@ const profileData = {
   timestamp: {},
   connections: {},
   weeklyRaces: [],
-  statistics: { season: {}, total: {} },
+  statistics: {
+    season: { bestTime: { ranked: 630000 } },
+    total: { bestTime: { ranked: 700000 } },
+  },
 };
 
 const todayMatchWon = {
@@ -113,7 +116,16 @@ test("renders config-driven title, progress and computed API stats", async () =>
   expect(screen.getByText("+5")).toBeInTheDocument(); // ELO diff today (15 - 10)
   expect(screen.getByText("7:30")).toBeInTheDocument(); // today avg (M:SS)
   expect(screen.getByText("Avg Match Time (Today)")).toBeInTheDocument();
+  expect(screen.getByText("Avg Match Time")).toBeInTheDocument();
+  expect(await screen.findByText("10:00")).toBeInTheDocument(); // all-time avg
+  expect(screen.getByText("10:30")).toBeInTheDocument(); // personal best
+  expect(screen.getByText("Personal Best")).toBeInTheDocument();
   expect(screen.getByText("LIVE")).toBeInTheDocument();
+
+  // ELO-change graph: session baseline + one point per match today.
+  const sparkline = document.querySelector(".mcsr-overlay__elo-graph polyline");
+  expect(sparkline).not.toBeNull();
+  expect(sparkline.getAttribute("points").trim().split(/\s+/)).toHaveLength(3);
 
   // Progress bar fill reflects 500/1000 = 50%.
   const fill = document.querySelector(".mcsr-overlay__progress-fill");

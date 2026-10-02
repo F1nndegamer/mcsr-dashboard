@@ -36,7 +36,41 @@ export const formatEloDelta = (delta) =>
  * Derives the API-driven overlay metrics from the profile and the merged
  * match map (seeded with full ranked history + refreshed by each poll).
  */
-export const computeOverlayStats = ({ profile, matches, sessionStart }) => {
+/** Cumulative ELO-change series for today, starting at the session baseline. */
+export const buildTodayEloSeries = (todayMatches, userUuid) => {
+  const sorted = [...todayMatches]
+    .filter((match) => typeof match?.date === "number")
+    .sort((a, b) =>
+      a.date === b.date ? (a.id ?? 0) - (b.id ?? 0) : a.date - b.date,
+    );
+
+  let cumulative = 0;
+  const series = [0];
+
+  sorted.forEach((match) => {
+    const change = (match.changes || []).find(
+      (entry) => entry.uuid === userUuid,
+    );
+    if (typeof change?.change !== "number") return;
+    cumulative += change.change;
+    series.push(cumulative);
+  });
+
+  return series;
+};
+
+/** Season personal best, falling back to the all-time best. */
+export const getPersonalBest = (profile) =>
+  profile?.statistics?.season?.bestTime?.ranked ??
+  profile?.statistics?.total?.bestTime?.ranked ??
+  null;
+
+export const computeOverlayStats = ({
+  profile,
+  matches,
+  sessionStart,
+  hasFullHistory,
+}) => {
   const userUuid = profile?.uuid;
   const allMatches = Array.from(matches.values());
 
@@ -45,6 +79,10 @@ export const computeOverlayStats = ({ profile, matches, sessionStart }) => {
   );
 
   const todayDurations = todayMatches
+    .filter(isValidDurationMatch)
+    .map((match) => match.result.time);
+
+  const overallDurations = allMatches
     .filter(isValidDurationMatch)
     .map((match) => match.result.time);
 
@@ -60,5 +98,9 @@ export const computeOverlayStats = ({ profile, matches, sessionStart }) => {
     runsToday: todayMatches.length,
     eloDeltaToday,
     todayAvgTime: average(todayDurations),
+    // Only trust the overall average once the full history has loaded.
+    overallAvgTime: hasFullHistory ? average(overallDurations) : null,
+    eloSeries: buildTodayEloSeries(todayMatches, userUuid),
+    personalBest: getPersonalBest(profile),
   };
 };
