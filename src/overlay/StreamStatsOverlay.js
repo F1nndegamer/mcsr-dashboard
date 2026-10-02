@@ -116,6 +116,9 @@ const StreamStatsOverlay = () => {
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [config.username, config.pollIntervalMs]);
 
   const stats = useMemo(
     () =>
@@ -241,6 +244,3 @@ const StreamStatsOverlay = () => {
 
 export default StreamStatsOverlay;
 
-      window.clearInterval(intervalId);
-    };
-  }, [config.username, config.pollIntervalMs]);
