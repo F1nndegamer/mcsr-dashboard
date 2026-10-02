@@ -102,7 +102,6 @@ test("renders config-driven title, progress and computed API stats", async () =>
 
   // Static config values render immediately.
   expect(screen.getByText("TEST CHALLENGE")).toBeInTheDocument();
-  expect(screen.getByText("500")).toBeInTheDocument(); // local total (non-API)
   expect(screen.getByText("500 / 1000")).toBeInTheDocument();
 
   // Wait for the first poll so API-derived values are on screen.
@@ -112,8 +111,8 @@ test("renders config-driven title, progress and computed API stats", async () =>
 
   expect(screen.getByText("2")).toBeInTheDocument(); // runs today
   expect(screen.getByText("+5")).toBeInTheDocument(); // ELO diff today (15 - 10)
-  expect(screen.getByText("7:30.000")).toBeInTheDocument(); // today avg
-  expect(await screen.findByText("10:00.000")).toBeInTheDocument(); // all-time avg
+  expect(screen.getByText("7:30")).toBeInTheDocument(); // today avg (M:SS)
+  expect(screen.getByText("Avg Match Time (Today)")).toBeInTheDocument();
   expect(screen.getByText("LIVE")).toBeInTheDocument();
 
   // Progress bar fill reflects 500/1000 = 50%.
@@ -142,6 +141,8 @@ test("keeps last known stats and flags offline state when a poll fails", async (
 
 test("hotkeys override the ?total= base and persist across remounts", async () => {
   const first = render(<StreamStatsOverlay />);
+  // Flush the initial poll so its state updates stay inside act().
+  await act(async () => {});
   expect(screen.getByText("500 / 1000")).toBeInTheDocument();
 
   fireEvent.keyDown(window, { key: "ArrowUp" });
@@ -156,8 +157,8 @@ test("hotkeys override the ?total= base and persist across remounts", async () =
   // Simulate an OBS source reload: fresh mount restores the override.
   first.unmount();
   render(<StreamStatsOverlay />);
+  await act(async () => {});
   expect(screen.getByText("502 / 1000")).toBeInTheDocument();
-  expect(screen.getByText("502")).toBeInTheDocument();
 
   // Backspace resets to the ?total= base and clears the stored override.
   fireEvent.keyDown(window, { key: "Backspace" });

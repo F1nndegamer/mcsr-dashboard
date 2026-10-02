@@ -18,17 +18,15 @@ export const average = (values) =>
     ? values.reduce((sum, value) => sum + value, 0) / values.length
     : null;
 
-/** Formats a duration in ms as M:SS.mmm (matches PersonalBestCard convention). */
-export const formatDuration = (ms) => {
+/** Formats a duration in ms as M:SS (big-tile friendly, no noisy ms). */
+export const formatClock = (ms) => {
   if (typeof ms !== "number" || !Number.isFinite(ms)) return "—";
 
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const milliseconds = Math.floor(ms % 1000);
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
 
-  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(
-    milliseconds,
-  ).padStart(3, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 };
 
 export const formatEloDelta = (delta) =>
@@ -38,12 +36,7 @@ export const formatEloDelta = (delta) =>
  * Derives the API-driven overlay metrics from the profile and the merged
  * match map (seeded with full ranked history + refreshed by each poll).
  */
-export const computeOverlayStats = ({
-  profile,
-  matches,
-  sessionStart,
-  hasFullHistory,
-}) => {
+export const computeOverlayStats = ({ profile, matches, sessionStart }) => {
   const userUuid = profile?.uuid;
   const allMatches = Array.from(matches.values());
 
@@ -52,10 +45,6 @@ export const computeOverlayStats = ({
   );
 
   const todayDurations = todayMatches
-    .filter(isValidDurationMatch)
-    .map((match) => match.result.time);
-
-  const overallDurations = allMatches
     .filter(isValidDurationMatch)
     .map((match) => match.result.time);
 
@@ -71,7 +60,5 @@ export const computeOverlayStats = ({
     runsToday: todayMatches.length,
     eloDeltaToday,
     todayAvgTime: average(todayDurations),
-    // Only trust the overall average once the full history has loaded.
-    overallAvgTime: hasFullHistory ? average(overallDurations) : null,
   };
 };

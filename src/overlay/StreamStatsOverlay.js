@@ -1,9 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  API_BASE,
-  RANKED_MATCH_TYPE,
-  fetchAllRankedMatches,
-} from "../api/mcsrApi";
+import { API_BASE, RANKED_MATCH_TYPE } from "../api/mcsrApi";
 import {
   clearStoredTotalRuns,
   loadStoredTotalRuns,
@@ -12,19 +8,18 @@ import {
 } from "./overlayConfig";
 import {
   computeOverlayStats,
-  formatDuration,
+  formatClock,
   formatEloDelta,
   getUtcStartOfTodaySeconds,
 } from "./overlayStats";
 import "./StreamStatsOverlay.css";
 
-const StatTile = ({ label, value, tone = "default", hint }) => (
+const StatTile = ({ label, value, tone = "default" }) => (
   <div className="mcsr-overlay__stat">
     <span className="mcsr-overlay__stat-label">{label}</span>
     <span className={`mcsr-overlay__stat-value mcsr-overlay__stat-value--${tone}`}>
       {value}
     </span>
-    {hint ? <span className="mcsr-overlay__stat-hint">{hint}</span> : null}
   </div>
 );
 
@@ -33,7 +28,6 @@ const StreamStatsOverlay = () => {
 
   const [profile, setProfile] = useState(null);
   const [allMatches, setAllMatches] = useState(() => new Map());
-  const [hasFullHistory, setHasFullHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
   // URL ?total= is the base; a localStorage override (hotkey/button edits)
@@ -148,26 +142,9 @@ const StreamStatsOverlay = () => {
       }
     };
 
-    const loadFullHistory = async () => {
-      try {
-        const history = await fetchAllRankedMatches(config.username);
-        if (cancelled) return;
-        mergeMatches(history);
-        setHasFullHistory(true);
-      } catch (historyError) {
-        if (cancelled) return;
-        console.warn(
-          "[mcsr-overlay] Could not load full history for overall average.",
-          historyError,
-        );
-      }
-    };
-
     pollStats();
-    loadFullHistory();
 
     const intervalId = window.setInterval(pollStats, config.pollIntervalMs);
-
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
@@ -180,9 +157,8 @@ const StreamStatsOverlay = () => {
         profile,
         matches: allMatches,
         sessionStart,
-        hasFullHistory,
       }),
-    [profile, allMatches, sessionStart, hasFullHistory],
+    [profile, allMatches, sessionStart],
   );
 
   const progressPercent =
@@ -213,115 +189,87 @@ const StreamStatsOverlay = () => {
       <section className="mcsr-overlay" aria-label="Stream statistics overlay">
         <header className="mcsr-overlay__header">
           <h1 className="mcsr-overlay__title">{config.title}</h1>
-          <span className={`mcsr-overlay__status ${statusClass}`}>
-            {statusLabel}
-          </span>
+          <div className="mcsr-overlay__header-right">
+            <span className="mcsr-overlay__progress-count">
+              {totalRuns} / {config.goalRuns}
+              <span className="mcsr-overlay__progress-percent">
+                {" "}
+                ({progressPercent.toFixed(1)}%)
+              </span>
+            </span>
+            {config.showControls ? (
+              <div className="mcsr-overlay__controls">
+                <button
+                  type="button"
+                  className="mcsr-overlay__control"
+                  aria-label="Decrease runs completed"
+                  title="Decrease (↓)"
+                  onClick={() => changeTotalRuns(-1)}
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  className="mcsr-overlay__control"
+                  aria-label="Increase runs completed"
+                  title="Increase (↑)"
+                  onClick={() => changeTotalRuns(1)}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  className="mcsr-overlay__control"
+                  aria-label="Reset runs completed"
+                  title="Reset to ?total= base (Backspace)"
+                  onClick={resetTotalRuns}
+                >
+                  ⟳
+                </button>
+              </div>
+            ) : null}
+            <span className={`mcsr-overlay__status ${statusClass}`}>
+              {statusLabel}
+            </span>
+          </div>
         </header>
 
-        <div className="mcsr-overlay__progress">
-          <div className="mcsr-overlay__progress-header">
-            <span className="mcsr-overlay__progress-label">
-              Runs Completed
-            </span>
-            <div className="mcsr-overlay__progress-right">
-              <span className="mcsr-overlay__progress-count">
-                {totalRuns} / {config.goalRuns}
-                <span className="mcsr-overlay__progress-percent">
-                  {" "}
-                  ({progressPercent.toFixed(1)}%)
-                </span>
-              </span>
-              {config.showControls ? (
-                <div className="mcsr-overlay__controls">
-                  <button
-                    type="button"
-                    className="mcsr-overlay__control"
-                    aria-label="Decrease runs completed"
-                    title="Decrease (↓)"
-                    onClick={() => changeTotalRuns(-1)}
-                  >
-                    −
-                  </button>
-                  <button
-                    type="button"
-                    className="mcsr-overlay__control"
-                    aria-label="Increase runs completed"
-                    title="Increase (↑)"
-                    onClick={() => changeTotalRuns(1)}
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
-                    className="mcsr-overlay__control"
-                    aria-label="Reset runs completed"
-                    title="Reset to ?total= base (Backspace)"
-                    onClick={resetTotalRuns}
-                  >
-                    ⟳
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
+        <div
+          className="mcsr-overlay__progress-track"
+          role="progressbar"
+          aria-valuenow={totalRuns}
+          aria-valuemin={0}
+          aria-valuemax={config.goalRuns}
+          aria-label="Progress towards goal runs"
+        >
           <div
-            className="mcsr-overlay__progress-track"
-            role="progressbar"
-            aria-valuenow={totalRuns}
-            aria-valuemin={0}
-            aria-valuemax={config.goalRuns}
-            aria-label="Progress towards goal runs"
-          >
-            <div
-              className="mcsr-overlay__progress-fill"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+            className="mcsr-overlay__progress-fill"
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
 
         <div className="mcsr-overlay__grid">
           <StatTile
-            label="Total Speedruns"
-            value={totalRuns}
-            tone="accent"
-            hint="LOCAL"
-          />
-          <StatTile
             label="Runs Today"
             value={profile ? stats.runsToday : "—"}
-            hint="SINCE 00:00 UTC"
           />
           <StatTile
             label="Current ELO"
             value={stats.currentElo ?? "—"}
             tone="accent"
-            hint="RANKED API"
           />
           <StatTile
             label="ELO Diff Today"
             value={profile ? formatEloDelta(stats.eloDeltaToday) : "—"}
             tone={eloTodayTone}
-            hint="THIS SESSION"
           />
           <StatTile
-            label="Avg Match Time"
-            value={
-              stats.overallAvgTime == null
-                ? hasFullHistory
-                  ? "—"
-                  : "LOADING..."
-                : formatDuration(stats.overallAvgTime)
-            }
-            hint="ALL-TIME"
-          />
-          <StatTile
-            label="Avg Match Time"
+            label="Avg Match Time (Today)"
             value={
               stats.todayAvgTime == null
                 ? "—"
-                : formatDuration(stats.todayAvgTime)
+                : formatClock(stats.todayAvgTime)
             }
-            hint="TODAY"
           />
         </div>
       </section>
