@@ -202,7 +202,7 @@ const StreamStatsOverlay = () => {
           <StatTile
             label="Runs Today"
             value={profile ? stats.runsToday : "—"}
-            hint="SINCE TODAY 00:00 UTC"
+            hint="SINCE 00:00 UTC"
           />
           <StatTile
             label="Current ELO"
