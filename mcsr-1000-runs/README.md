@@ -99,12 +99,19 @@ re-run; `sync` never touches formatting):
 - Header row and the `Run #`/`Match #` columns stay frozen; every column has a
   reading-width pixel size; data cells are centre- or left-aligned by type and
   durations render as `[mm]:ss.000`.
-- Conditional formatting (green/red/amber/purple/blue on a soft palette, in
+- Conditional formatting (green/red/amber/purple/blue/slate on a soft palette, in
   strict priority order): `Result` colours, `Counts Toward 1000`, a `Run #`
   accent, a subtle green-to-warm color scale on `Final Time` (fastest wins,
-  no rainbow), `Deaths` 1+, the `Completion` labels, Elo gains/losses and
-  `Data Status` - with a nearly invisible alternating-row tint registered last
-  so semantic colours always win.
+  no rainbow), a cyan highlight for the single best time in the sheet, quiet
+  slate italics for `N/A` cells, a deathless `Deaths 0`, a blue `Elo Change 0`,
+  `Deaths` 1+, the `Completion` labels, Elo gains/losses and `Data Status` - with
+  a nearly invisible alternating-row tint registered last so semantic colours
+  always win.
+- Absent values are shown deliberately rather than left blank: a split the run
+  never reached (and `Death Messages` for a deathless run) reads `N/A`, a
+  missing `Elo Change` reads `0` in blue, and `Counts Toward 1000` is always an
+  explicit `TRUE`/`FALSE`. `N/A` is display-only - it deserialises back to an
+  absent value, so it never reaches the dashboard aggregates or a re-sync diff.
 - The Dashboard leads with a `X / 1000 Runs` hero plus a progress bar, then
   W/L/D/Forfeit counts (colour-accented), completion % and the timing stats.
 

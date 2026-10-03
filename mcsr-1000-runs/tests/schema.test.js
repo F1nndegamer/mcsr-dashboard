@@ -135,6 +135,53 @@ describe("Runs sheet schema", () => {
   });
 });
 
+describe("display defaults for absent values", () => {
+  const cell = (record, key) => serializeRecord(record)[COLUMN_INDEX[key]];
+
+  it("shows N/A for a split the run never reached", () => {
+    // A LOSS reaches the Nether but never the End, so those two splits have no
+    // value at all - "not applicable", distinct from "not measured yet".
+    const record = { matchId: 1, owSplitMs: 60_000, endSplitMs: undefined, finalTimeMs: undefined };
+    assert.equal(cell(record, "endSplitMs"), "N/A");
+    assert.equal(cell(record, "finalTimeMs"), "N/A");
+    // A real split is still written as a day fraction so Sheets can aggregate it.
+    assert.equal(cell(record, "owSplitMs"), 60_000 / 86_400_000);
+  });
+
+  it("N/A round-trips back to undefined, so re-syncing is stable", () => {
+    const first = serializeRecord({ matchId: 1, endSplitMs: undefined });
+    const record = deserializeRow(first);
+    assert.equal(record.endSplitMs, undefined, "N/A must not be read back as a duration");
+    // ...and serialising again produces the identical cell, so no rewrite loop.
+    assert.equal(serializeRecord(record)[COLUMN_INDEX.endSplitMs], "N/A");
+  });
+
+  it("shows N/A in Death Messages for a deathless run, but keeps real messages", () => {
+    assert.equal(cell({ matchId: 1, deaths: 0, deathMessages: "" }, "deathMessages"), "N/A");
+    assert.equal(cell({ matchId: 2, deaths: 0, deathMessages: "close call" }, "deathMessages"), "close call");
+    assert.equal(cell({ matchId: 3, deaths: 2, deathMessages: "lava" }, "deathMessages"), "lava");
+    // Deaths still unknown (no timeline data) stays blank - that is genuinely
+    // unknown, not "no deaths", and Data Status must keep flagging it.
+    assert.equal(cell({ matchId: 4, deaths: undefined, deathMessages: "" }, "deathMessages"), "");
+    assert.equal(cell({ matchId: 4, deaths: undefined }, "deaths"), "");
+  });
+
+  it("shows 0 for an absent Elo change so a draw reads as 'no movement'", () => {
+    assert.equal(cell({ matchId: 1, eloChange: undefined }, "eloChange"), 0);
+    assert.equal(cell({ matchId: 2, eloChange: 0 }, "eloChange"), 0);
+    assert.equal(cell({ matchId: 3, eloChange: -14 }, "eloChange"), -14);
+    // Other numeric columns keep their blank-when-unknown behaviour.
+    assert.equal(cell({ matchId: 4, eloBefore: undefined }, "eloBefore"), "");
+  });
+
+  it("always writes Counts Toward 1000 as an explicit boolean", () => {
+    assert.equal(cell({ matchId: 1, countsToward1000: true }, "countsToward1000"), true);
+    assert.equal(cell({ matchId: 2, countsToward1000: false }, "countsToward1000"), false);
+    // Previously an unknown flag serialised to "", which read as "no data".
+    assert.equal(cell({ matchId: 3, countsToward1000: undefined }, "countsToward1000"), false);
+  });
+});
+
 describe("manual field preservation", () => {
   const apiRecord = {
     matchId: 1,
@@ -303,6 +350,41 @@ describe("Runs sheet presentation", () => {
         "Final Time must not carry the -1/0/1 dropdown",
       );
     }
+  });
+
+  it("tints N/A, a deathless zero and a zero Elo change with distinct, quiet colours", () => {
+    const rules = conditionalFormatRules({ sheetId: 7, capacity: 2500 });
+    const formulas = rules
+      .map((rule) => rule.booleanRule?.condition?.values?.[0]?.userEnteredValue)
+      .filter((value) => typeof value === "string");
+
+    // Unreached splits (and their N/A placeholder) are greyed + italicised.
+    assert.ok(
+      formulas.some((f) => f.includes("ISNUMBER") && f.includes("=FALSE")),
+      "expected a rule that mutes non-numeric (N/A) split cells",
+    );
+    assert.ok(formulas.some((f) => f.includes("COUNTIF")), "expected the best-time emphasis rule");
+
+    // Deathless zero, zero Elo change and a FALSE flag all read quietly.
+    assert.ok(formulas.some((f) => /^=\w+2=0$/.test(f)), "expected a Deaths=0 rule");
+    assert.ok(
+      formulas.filter((f) => /^=\w+2=0$/.test(f)).length >= 2,
+      "expected both Deaths=0 and EloChange=0 rules",
+    );
+
+    // The N/A placeholder is styled (italic) rather than left to the number
+    // format, so it never looks like a corrupt value.
+    const italicRules = rules.filter((rule) => rule.booleanRule?.format?.textFormat?.italic);
+    assert.ok(italicRules.length >= 2, "N/A splits and N/A death messages should be italic");
+
+    // The best-time rule must exclude N/A rows, or a placeholder would win.
+    const bestTime = rules.find(
+      (rule) => rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes("COUNTIF"),
+    );
+    assert.ok(
+      bestTime.booleanRule.condition.values[0].userEnteredValue.includes("ISNUMBER"),
+      "the best-time rule must ignore N/A rows",
+    );
   });
 
   it("covers every semantic colour rule, banding last", () => {
