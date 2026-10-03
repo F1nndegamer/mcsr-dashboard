@@ -84,18 +84,30 @@ export class MemoryBackend {
         // Mirrors Sheet.conditionalFormats so init idempotency can be tested
         // offline exactly the way the live API behaves.
         conditionalFormats: [],
+        // Mirrors Sheet.dataValidation[*].ranges: setDataValidation REPLACES
+        // validation across the ranges it covers (it is the only way to clear
+        // a rule - the API has no "clear data validation" request).
+        dataValidations: [],
       });
     }
     return this.sheets.get(title);
   }
 
   async getSheetMetadata() {
-    return [...this.sheets.values()].map(({ title, sheetId, index, conditionalFormats }) => ({
-      title,
-      sheetId,
-      index,
-      conditionalFormatRuleCount: (conditionalFormats ?? []).length,
-    }));
+    return [...this.sheets.values()].map(
+      ({ title, sheetId, index, conditionalFormats, dataValidations }) => ({
+        title,
+        sheetId,
+        index,
+        conditionalFormatRuleCount: (conditionalFormats ?? []).length,
+        // Lets tests assert which columns are still validated offline.
+        dataValidations: (dataValidations ?? []).map((entry) => ({
+          startColumnIndex: entry.startColumnIndex ?? 0,
+          endColumnIndex: entry.endColumnIndex ?? 0,
+          condition: entry.rule?.condition?.type,
+        })),
+      }),
+    );
   }
 
   setCell(sheet, rowIndex, colIndex, value) {
@@ -155,8 +167,13 @@ export class MemoryBackend {
       const [type] = Object.keys(request);
       const payload = request[type] ?? {};
       // addConditionalFormatRule carries no top-level sheetId: the target
-      // sheet lives in rule.ranges[0].sheetId (delete/update do have one).
-      const sheet = this.findSheetById(payload.sheetId ?? payload.rule?.ranges?.[0]?.sheetId);
+      // sheet lives in rule.ranges[0].sheetId. setDataValidation keeps it in
+      // range.sheetId. delete/update conditional rules do have a top-level one.
+      const sheet = this.findSheetById(
+        payload.sheetId ??
+          payload.range?.sheetId ??
+          payload.rule?.ranges?.[0]?.sheetId,
+      );
       if (!sheet) continue;
       const rules = sheet.conditionalFormats ?? (sheet.conditionalFormats = []);
       if (type === "addConditionalFormatRule") {
@@ -172,6 +189,28 @@ export class MemoryBackend {
           const [moved] = rules.splice(payload.index, 1);
           rules.splice(payload.newIndex, 0, moved);
         }
+      } else if (type === "setDataValidation") {
+        // The live API applies a rule to every cell the range covers and
+        // REPLACES whatever validation those cells had. There is no "clear
+        // data validation" request, so clearing means overwriting with a
+        // permissive rule. A range that only partially overlaps an existing
+        // rule splits it, exactly as Sheets does.
+        const range = payload.range ?? {};
+        const newStart = range.startColumnIndex ?? 0;
+        const newEnd = range.endColumnIndex ?? 0;
+        const next = [];
+        for (const entry of sheet.dataValidations ?? []) {
+          const start = entry.startColumnIndex ?? 0;
+          const end = entry.endColumnIndex ?? 0;
+          if (newStart >= end || newEnd <= start) {
+            next.push(entry); // disjoint: untouched
+            continue;
+          }
+          if (start < newStart) next.push({ ...entry, endColumnIndex: newStart });
+          if (newEnd < end) next.push({ ...entry, startColumnIndex: newEnd });
+        }
+        next.push({ ...range, rule: payload.rule });
+        sheet.dataValidations = next;
       }
     }
     this.sheetRequests.push(...requests);

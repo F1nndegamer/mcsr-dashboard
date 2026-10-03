@@ -109,6 +109,49 @@ export const INTERPOLATION_POINT_TYPES = [
 
 const REQUEST_TYPE_SET = new Set(BATCH_UPDATE_REQUEST_TYPES);
 
+/**
+ * `BooleanCondition.type` (ConditionType) enum, verbatim from the discovery
+ * document. Guards `setDataValidation` - the live API rejects an unknown type
+ * with an opaque "Invalid JSON payload received" error.
+ */
+export const CONDITION_TYPES = [
+  "CONDITION_TYPE_UNSPECIFIED",
+  "NUMBER_GREATER",
+  "NUMBER_GREATER_THAN_EQ",
+  "NUMBER_LESS",
+  "NUMBER_LESS_THAN_EQ",
+  "NUMBER_EQ",
+  "NUMBER_NOT_EQ",
+  "NUMBER_BETWEEN",
+  "NUMBER_NOT_BETWEEN",
+  "TEXT_CONTAINS",
+  "TEXT_NOT_CONTAINS",
+  "TEXT_STARTS_WITH",
+  "TEXT_ENDS_WITH",
+  "TEXT_EQ",
+  "TEXT_IS_EMAIL",
+  "TEXT_IS_URL",
+  "DATE_EQ",
+  "DATE_BEFORE",
+  "DATE_AFTER",
+  "DATE_ON_OR_BEFORE",
+  "DATE_ON_OR_AFTER",
+  "DATE_BETWEEN",
+  "DATE_NOT_BETWEEN",
+  "DATE_IS_VALID",
+  "ONE_OF_RANGE",
+  "ONE_OF_LIST",
+  "BLANK",
+  "NOT_BLANK",
+  "CUSTOM_FORMULA",
+  "BOOLEAN",
+  "TEXT_NOT_EQ",
+  "DATE_NOT_EQ",
+  "FILTER_EXPRESSION",
+];
+
+const CONDITION_TYPE_SET = new Set(CONDITION_TYPES);
+
 const isPlainObject = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -393,6 +436,29 @@ export const validateBatchUpdateRequests = (requests) => {
       case "updateCells":
       case "appendCells": {
         validateRowsFormat(payload, index, request);
+        break;
+      }
+      case "setDataValidation": {
+        // BooleanCondition.type must be a real ConditionType enum value. The
+        // live API rejects typos here with an opaque "Invalid JSON payload".
+        const condition = payload.rule?.condition;
+        if (!isPlainObject(condition) || typeof condition.type !== "string") {
+          fail(index, "setDataValidation.rule.condition.type must be a string.", request);
+        }
+        if (!CONDITION_TYPE_SET.has(condition.type)) {
+          fail(
+            index,
+            `setDataValidation.rule.condition.type "${condition.type}" is not a valid ConditionType.`,
+            request,
+          );
+        }
+        // ONE_OF_LIST needs its option list; formulas are not supported there.
+        if (condition.type === "ONE_OF_LIST") {
+          const values = condition.values ?? [];
+          if (!Array.isArray(values) || values.length === 0) {
+            fail(index, "setDataValidation ONE_OF_LIST requires a non-empty values array.", request);
+          }
+        }
         break;
       }
       default:

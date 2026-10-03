@@ -109,6 +109,8 @@ export const normalizeMatch = ({ match, playerUuid, utcOffsetMinutes = 0 } = {})
     // user correction is never overwritten by a later sync. When the match
     // has no timeline array at all we know nothing, so leave it undefined
     // (Data Status will flag it) instead of seeding a false zero.
+    // A timeline that exists but contains no death events IS a known zero:
+    // that is a deathless run, and Death Messages then serialises to "N/A".
     deaths: Array.isArray(match.timelines) ? deathCount : undefined,
     deathTimes: Array.isArray(match.timelines) ? [...deathTimes] : [],
 

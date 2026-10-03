@@ -264,6 +264,47 @@ describe("Runs sheet presentation", () => {
     assert.deepEqual(addIndexes, addIndexes.map((_, index) => index));
   });
 
+  it("clears stale data validation everywhere before applying the Completion Type dropdown", () => {
+    // Regression: when `Bastion Variant` / `Blaze Rods` were dropped, Completion
+    // Type moved from column index 18 to 16. The dropdown written against the old
+    // layout stayed anchored to index 18 - now `Final Time` - so the duration
+    // column offered a -1/0/1 dropdown and rejected every real time.
+    const requests = runsSheetSetupRequests({ sheetId: 7, capacity: 2500 });
+    const validations = requests.filter((request) => request.setDataValidation);
+    assert.ok(validations.length >= 2, "expected a clearing request plus the dropdown");
+
+    const [clearing, dropdown] = validations;
+    const clear = clearing.setDataValidation;
+    // Covers the entire body, so ANY leftover rule is overwritten.
+    assert.equal(clear.range.startColumnIndex, 0);
+    assert.equal(clear.range.endColumnIndex, COLUMN_COUNT);
+    assert.equal(clear.range.startRowIndex, 1);
+    // Non-strict + non-UI so no cell is ever flagged as invalid data.
+    assert.equal(clear.rule.strict, false);
+    assert.equal(clear.rule.showCustomUi, false);
+
+    // The real dropdown then lands on Completion Type only.
+    const real = dropdown.setDataValidation;
+    assert.equal(real.range.startColumnIndex, COLUMN_INDEX.completionType);
+    assert.equal(real.range.endColumnIndex, COLUMN_INDEX.completionType + 1);
+    assert.equal(real.rule.condition.type, "ONE_OF_LIST");
+
+    // The clearing request must come first, otherwise stale rules survive.
+    assert.ok(requests.indexOf(clearing) < requests.indexOf(dropdown));
+
+    // Guard the actual bug: Final Time must never be a dropdown column.
+    assert.notEqual(COLUMN_INDEX.finalTimeMs, COLUMN_INDEX.completionType);
+    for (const request of validations) {
+      const { startColumnIndex, endColumnIndex } = request.setDataValidation.range;
+      const isDropdown = request.setDataValidation.rule.condition.type === "ONE_OF_LIST";
+      if (!isDropdown) continue;
+      assert.ok(
+        !(startColumnIndex <= COLUMN_INDEX.finalTimeMs && COLUMN_INDEX.finalTimeMs < endColumnIndex),
+        "Final Time must not carry the -1/0/1 dropdown",
+      );
+    }
+  });
+
   it("covers every semantic colour rule, banding last", () => {
     const rules = conditionalFormatRules({ sheetId: 7, capacity: 2500 });
     const texts = rules

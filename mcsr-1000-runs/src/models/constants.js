@@ -28,6 +28,18 @@ export const RUNS_SHEET = "Runs";
 export const DASHBOARD_SHEET = "Dashboard";
 
 /**
+ * Display placeholder for a value that is genuinely not applicable, as opposed
+ * to one that is merely unknown or not yet filled in.
+ *
+ * Used for splits a run never reached (a LOSS has no End Split) and for the
+ * Death Messages of a deathless run. It is a *display* convention applied when
+ * serialising a row: the underlying record keeps `undefined` so the sync
+ * engine, Data Status and the dashboard's numeric aggregates (AVERAGE / MIN /
+ * MEDIAN / COUNT over the Final Time column) still only ever see real numbers.
+ */
+export const NOT_APPLICABLE = "N/A";
+
+/**
  * Manual fields are user-owned and must never be overwritten by sync.
  * (`deaths` is API-seeded first - see API_SEEDED_FIELDS - then becomes
  * user-owned like the rest.)

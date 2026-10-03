@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MemoryBackend } from "../src/sheets/backend.js";
+import { COLUMN_INDEX } from "../src/models/runRecord.js";
 import { createBackend, ensureSheets, initializeSheets } from "../src/sheets/index.js";
 import { readRunsSheet } from "../src/sheets/runSheet.js";
 
@@ -74,5 +75,60 @@ describe("sheet setup + duplicate-safe reads", () => {
     // The simulated rule list never accumulates duplicates.
     const again = (await backend.getSheetMetadata()).find((sheet) => sheet.title === "Runs");
     assert.equal(again.conditionalFormatRuleCount, ruleCount);
+  });
+
+  it("initializeSheets clears a stale dropdown left on Final Time by an older layout", async () => {
+    // Reproduces the reported symptom end-to-end: a sheet that was initialised
+    // when Completion Type sat at column index 18 (before Bastion Variant /
+    // Blaze Rods were removed) still has a -1/0/1 dropdown on index 18 - which
+    // is now Final Time.
+    const backend = new MemoryBackend();
+    const runs = await backend.ensureSheet("Runs");
+    await backend.batchUpdateSpreadsheet({
+      requests: [
+        {
+          setDataValidation: {
+            range: {
+              sheetId: runs.sheetId,
+              startRowIndex: 1,
+              endRowIndex: 2500,
+              startColumnIndex: 18,
+              endColumnIndex: 19,
+            },
+            rule: {
+              condition: {
+                type: "ONE_OF_LIST",
+                values: [-1, 0, 1].map((value) => ({ userEnteredValue: String(value) })),
+              },
+              strict: true,
+              showCustomUi: true,
+            },
+          },
+        },
+      ],
+    });
+
+    await initializeSheets({ backend, config: config() });
+
+    const after = (await backend.getSheetMetadata()).find((sheet) => sheet.title === "Runs");
+    const dropdowns = after.dataValidations.filter((entry) => entry.condition === "ONE_OF_LIST");
+    assert.equal(dropdowns.length, 1, "only Completion Type should keep a dropdown");
+    assert.equal(dropdowns[0].startColumnIndex, COLUMN_INDEX.completionType);
+
+    // The stale rule on Final Time is gone: index 18 is no longer ONE_OF_LIST.
+    const onFinalTime = after.dataValidations.filter(
+      (entry) => entry.startColumnIndex <= COLUMN_INDEX.finalTimeMs && COLUMN_INDEX.finalTimeMs < entry.endColumnIndex,
+    );
+    for (const entry of onFinalTime) {
+      assert.notEqual(entry.condition, "ONE_OF_LIST", "Final Time must not keep the -1/0/1 dropdown");
+    }
+
+    // Re-running init is idempotent: still exactly one dropdown, still on
+    // Completion Type.
+    await initializeSheets({ backend, config: config() });
+    const twice = (await backend.getSheetMetadata()).find((sheet) => sheet.title === "Runs");
+    const twiceDropdowns = twice.dataValidations.filter((entry) => entry.condition === "ONE_OF_LIST");
+    assert.equal(twiceDropdowns.length, 1);
+    assert.equal(twiceDropdowns[0].startColumnIndex, COLUMN_INDEX.completionType);
   });
 });

@@ -1,4 +1,9 @@
-import { COMPLETION_FORMULA_TEMPLATE, COMPLETION_TYPES, MANUAL_FIELDS } from "./constants.js";
+import {
+  COMPLETION_FORMULA_TEMPLATE,
+  COMPLETION_TYPES,
+  MANUAL_FIELDS,
+  NOT_APPLICABLE,
+} from "./constants.js";
 
 /**
  * Normalised record + the single source of truth for the Runs sheet schema.
@@ -137,6 +142,9 @@ export const msToDuration = (ms) =>
   typeof ms === "number" && Number.isFinite(ms) ? ms / MS_PER_DAY : "";
 
 export const durationToMs = (value) => {
+  // "N/A" (our display placeholder for a split the run never reached) is not a
+  // number, so it deserialises back to `undefined` and the row round-trips
+  // stably: absent -> "N/A" -> absent.
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   // Sheets day fractions only: a full day is 1.0, so anything larger is not a
   // duration cell (e.g. a row index pasted into the wrong column).
@@ -173,19 +181,35 @@ export const serializeRecord = (record) =>
       case "int":
       case "manualInt":
       case "apiSeededInt":
+        // An unknown Elo change is reported as 0 rather than left blank: a draw
+        // genuinely moves no rating, and a visible 0 (tinted blue) is far easier
+        // to read at a glance than an empty cell.
+        if (column.key === "eloChange") {
+          return typeof value === "number" && Number.isFinite(value) ? value : 0;
+        }
         return typeof value === "number" && Number.isFinite(value) ? value : "";
       case "bool":
-        return typeof value === "boolean" ? value : isBlank(value) ? "" : Boolean(value);
+        // Always an explicit TRUE/FALSE. An empty cell reads as "no data" and
+        // hides the meaning "this run did not count".
+        return typeof value === "boolean" ? value : isBlank(value) ? false : Boolean(value);
       case "duration":
-        return msToDuration(value);
+        // A split the run never reached is *not applicable*, which is a
+        // different thing from "not measured yet". Real numbers are still
+        // written as day fractions so Sheets can aggregate them.
+        return typeof value === "number" && Number.isFinite(value) ? value / MS_PER_DAY : NOT_APPLICABLE;
       case "datetime":
         return msToSerialDate(value);
       case "manualCompletion": {
         const parsed = parseCompletionType(value);
         return parsed === undefined ? "" : parsed;
       }
-      case "text":
       case "manualText":
+        // A deathless run has no death messages to record.
+        if (column.key === "deathMessages" && record.deaths === 0 && isBlank(value)) {
+          return NOT_APPLICABLE;
+        }
+        return isBlank(value) ? "" : String(value);
+      case "text":
       default:
         return isBlank(value) ? "" : String(value);
     }

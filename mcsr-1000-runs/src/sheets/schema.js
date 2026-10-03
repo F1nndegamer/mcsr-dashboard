@@ -49,6 +49,22 @@ const COLOR = {
   timeMid: { red: 1, green: 1, blue: 1 },
   timeMax: { red: 0.988, green: 0.914, blue: 0.882 },
   accentBlue: { red: 0.11, green: 0.31, blue: 0.62 },
+
+  // --- added / reworked in the readability pass --------------------------
+  // Slate: the "inert" family. Used for N/A cells and a zero Elo change - the
+  // value is present and meaningful, but should read as quiet so the cells
+  // that actually carry news stand out.
+  slateFg: { red: 0.45, green: 0.49, blue: 0.53 },
+  slateBg: { red: 0.949, green: 0.957, blue: 0.965 },
+  // Cyan: best-in-set emphasis (PB / fastest time). Deliberately distinct from
+  // the result and Elo families so a PB never reads as "won".
+  cyanBg: { red: 0.827, green: 0.949, blue: 0.961 },
+  cyanFg: { red: 0.05, green: 0.44, blue: 0.52 },
+  // Teal: section identity for the FINAL block header.
+  tealHeader: { red: 0.08, green: 0.31, blue: 0.35 },
+  // Violet: a notable Elo gain, distinct from WIN's green.
+  violetBg: { red: 0.906, green: 0.898, blue: 0.98 },
+  violetFg: { red: 0.36, green: 0.25, blue: 0.62 },
 };
 
 /** Header shading per section (same order as RUNS_SECTIONS). */
@@ -58,7 +74,7 @@ const SECTION_HEADER_COLORS = [
   COLOR.headerB, // OVERWORLD
   COLOR.headerA, // NETHER
   COLOR.headerB, // END
-  COLOR.headerA, // FINAL
+  COLOR.tealHeader, // FINAL (its own hue so the time block is findable)
   COLOR.headerB, // RANKED
   COLOR.headerA, // USER
 ];
@@ -261,7 +277,45 @@ export const runsSheetSetupRequests = ({
     });
   });
 
-  // --- Completion Type dropdown ---------------------------------------------
+  // --- data validation -------------------------------------------------------
+  // The Sheets API has no "clear data validation" request. `setDataValidation`
+  // *replaces* the validation on the ranges it covers, and the only way to
+  // neutralise a rule is to overwrite it with a permissive one.
+  //
+  // This matters because the column layout changed over time: when `Bastion
+  // Variant` and `Blaze Rods` were dropped, `Completion Type` shifted from
+  // column index 18 to 16. Any dropdown written before that shift stayed
+  // anchored to index 18 - which is now `Final Time` - leaving the duration
+  // column with a -1/0/1 dropdown that rejects every real time.
+  //
+  // So: first overwrite validation across the WHOLE body with an always-true
+  // CUSTOM_FORMULA rule, then apply the real dropdown to `Completion Type` only.
+  // This is idempotent and self-healing on every init, whatever a previous
+  // layout left behind.
+  //
+  // `=TRUE` is used deliberately instead of a numeric comparison: it matches
+  // text, numbers and blanks alike, so no cell is ever flagged as "invalid
+  // data" (which is what a numeric rule would do to the text columns).
+  requests.push({
+    setDataValidation: {
+      range: {
+        sheetId,
+        startRowIndex: 1,
+        endRowIndex: capacity,
+        startColumnIndex: 0,
+        endColumnIndex: COLUMN_COUNT,
+      },
+      rule: {
+        condition: {
+          type: "CUSTOM_FORMULA",
+          values: [{ userEnteredValue: "=TRUE" }],
+        },
+        strict: false,
+        showCustomUi: false,
+      },
+    },
+  });
+
   requests.push({
     setDataValidation: {
       range: {
@@ -353,15 +407,17 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
   );
 
   // --- Counts Toward 1000 ----------------------------------------------------
+  // TRUE is the only affirmative signal in the sheet, so it keeps the strong
+  // green. FALSE is deliberately near-inert: it is the common case and must not
+  // compete with Result.
   const counts = col("countsToward1000");
   rules.push(
     customRule(counts, `=${letter("countsToward1000")}2=TRUE`, {
       backgroundColor: COLOR.greenBg,
-      textFormat: { foregroundColor: COLOR.greenFg },
+      textFormat: { foregroundColor: COLOR.greenFg, bold: true },
     }),
     customRule(counts, `=${letter("countsToward1000")}2=FALSE`, {
-      backgroundColor: COLOR.grayBg,
-      textFormat: { foregroundColor: COLOR.grayFg },
+      textFormat: { foregroundColor: COLOR.slateFg },
     }),
   );
 
@@ -385,6 +441,53 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
       maxpoint: { color: COLOR.timeMax, type: "MAX" },
     },
   });
+
+  // --- Unreached splits read as quiet slate, not as missing data -----------
+  // "N/A" means the run never got there (a LOSS has no End Split). Without
+  // this the placeholder inherits the column's number format and looks like a
+  // glitch; slate + italic makes it obviously deliberate. Covers the split
+  // block as one range so a single rule handles every time column.
+  rules.push(
+    customRule(
+      {
+        sheetId,
+        startRowIndex: 1,
+        endRowIndex: capacity,
+        startColumnIndex: COLUMN_INDEX.owSplitMs,
+        endColumnIndex: COLUMN_INDEX.finalTimeMs + 1,
+      },
+      `=ISNUMBER(${letter("owSplitMs")}2)=FALSE`,
+      { textFormat: { foregroundColor: COLOR.slateFg, italic: true } },
+    ),
+    textEqRule(col("deathMessages"), "N/A", {
+      textFormat: { foregroundColor: COLOR.slateFg, italic: true },
+    }),
+  );
+
+  // --- Deathless runs: a clean, deliberate zero ---------------------------
+  // Before this, a real 0 and a blank cell looked identical; now 0 is an
+  // explicit, readable statement (and stays quieter than any real death).
+  rules.push(
+    customRule(col("deaths"), `=${letter("deaths")}2=0`, {
+      textFormat: { foregroundColor: COLOR.slateFg },
+    }),
+  );
+
+  // --- Fastest completed run gets a cyan emphasis -------------------------
+  // Cyan, not green: a personal best is not a win, and it must never be
+  // confused with the Result column. ISNUMBER keeps "N/A" rows out.
+  rules.push(
+    customRule(
+      col("finalTimeMs"),
+      `=AND(ISNUMBER(${letter("finalTimeMs")}2),` +
+        `COUNTIF(${letter("finalTimeMs")}$2:${letter("finalTimeMs")}$${capacity},` +
+        `"<"&${letter("finalTimeMs")}2)=0)`,
+      {
+        backgroundColor: COLOR.cyanBg,
+        textFormat: { foregroundColor: COLOR.cyanFg, bold: true },
+      },
+    ),
+  );
 
   // --- Deaths 1+ -------------------------------------------------------------
   rules.push(
@@ -416,13 +519,22 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
     }),
   );
 
-  // --- Elo change: green gains, red losses -----------------------------------
+  // --- Elo change: violet gains, red losses, blue for no movement ----------
+  // A zero change (typically a draw, or an uncounted round) is a real, useful
+  // value - not a gap - so it is shown explicitly and tinted blue: neutral
+  // like slate, but cool rather than dead, so it reads as "nothing happened"
+  // rather than "unknown".
+  const elo = col("eloChange");
   rules.push(
-    customRule(col("eloChange"), `=${letter("eloChange")}2>0`, {
+    customRule(elo, `=${letter("eloChange")}2>0`, {
       textFormat: { foregroundColor: COLOR.greenFg, bold: true },
     }),
-    customRule(col("eloChange"), `=${letter("eloChange")}2<0`, {
+    customRule(elo, `=${letter("eloChange")}2<0`, {
       textFormat: { foregroundColor: COLOR.redFg, bold: true },
+    }),
+    customRule(elo, `=${letter("eloChange")}2=0`, {
+      backgroundColor: COLOR.blueBg,
+      textFormat: { foregroundColor: COLOR.blueFg, bold: true },
     }),
   );
 
