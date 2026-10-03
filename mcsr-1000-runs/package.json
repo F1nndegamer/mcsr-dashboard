@@ -1,0 +1,19 @@
+{
+  "name": "mcsr-1000-runs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tracks 1000 Minecraft speedruns where a player personally reaches End credits in MCSR Ranked.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.7.0"
+  },
+  "scripts": {
+    "init-sheet": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli.js init-sheet",
+    "sync": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli.js sync",
+    "sync:initial": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli.js sync --initial",
+    "sync:dry": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli.js sync --dry-run",
+    "timeline-map": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli.js timeline-map",
+    "probe": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/cli.js probe",
+    "test": "node --test tests/*.test.js"
+  }
+}
