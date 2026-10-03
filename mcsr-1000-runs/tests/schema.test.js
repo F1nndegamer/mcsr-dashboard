@@ -11,7 +11,7 @@ import {
   msToDuration,
   serializeRecord,
 } from "../src/models/runRecord.js";
-import { conditionalFormatRules, runsSheetSetupRequests } from "../src/sheets/schema.js";
+import { COLOR, conditionalFormatRules, runsSheetSetupRequests } from "../src/sheets/schema.js";
 import {
   buildRecordSet,
   cellEquals,
@@ -172,6 +172,8 @@ describe("display defaults for absent values", () => {
     assert.equal(cell({ matchId: 3, eloChange: -14 }, "eloChange"), -14);
     // Other numeric columns keep their blank-when-unknown behaviour.
     assert.equal(cell({ matchId: 4, eloBefore: undefined }, "eloBefore"), "");
+    // A deathless 0 is a real number, and must be filled in rather than blank.
+    assert.equal(cell({ matchId: 1, deaths: 0 }, "deaths"), 0);
   });
 
   it("always writes Counts Toward 1000 as an explicit boolean", () => {
@@ -251,6 +253,42 @@ describe("planRunsUpdates", () => {
     assert.equal(cellEquals(0.0069, 0.0079, "duration"), false);
     assert.equal(cellEquals("WIN", "WIN", "text"), true);
     assert.equal(cellEquals("WIN", "LOSS", "text"), false);
+  });
+
+  it("backfills explicit FALSE and 0 over blank cells, but never clears a value", () => {
+    // The bug these guard against: blank was treated as equal to false/0, so a
+    // sheet written before the defaults existed stayed blank forever.
+    assert.equal(cellEquals(false, "", "bool"), false, "FALSE must overwrite a blank cell");
+    assert.equal(cellEquals(false, undefined, "bool"), false);
+    assert.equal(cellEquals(0, "", "int"), false, "0 must overwrite a blank cell");
+    assert.equal(cellEquals(0, "", "apiSeededInt"), false);
+
+    // Already-correct values stay untouched, so sync is still idempotent.
+    assert.equal(cellEquals(false, false, "bool"), true);
+    assert.equal(cellEquals(0, 0, "int"), true);
+
+    // The reverse direction must remain "equal": a blank desired value never
+    // wipes a stored 0/FALSE, which protects the manual fields.
+    assert.equal(cellEquals("", false, "bool"), true);
+    assert.equal(cellEquals("", 0, "manualInt"), true);
+    assert.equal(cellEquals("", 0, "apiSeededInt"), true);
+  });
+
+  it("plans a backfill write for a row whose defaults are not in the sheet yet", () => {
+    const record = { matchNumber: 1, matchId: 1, result: "LOSS", countsToward1000: false, deaths: 0, eloChange: 0 };
+    const desired = serializeRecord(record);
+    // Simulate a legacy row: the defaults are simply missing.
+    const legacy = desired.slice();
+    legacy[COLUMN_INDEX.countsToward1000] = "";
+    legacy[COLUMN_INDEX.deaths] = "";
+    legacy[COLUMN_INDEX.eloChange] = "";
+
+    const plan = planRunsUpdates({ records: [record], existingRows: [legacy] });
+    assert.ok(plan.updates.length > 0, "expected sync to write the missing defaults");
+
+    // And once written, a second pass must plan nothing.
+    const again = planRunsUpdates({ records: [record], existingRows: [desired] });
+    assert.deepEqual(again.updates, []);
   });
 });
 
@@ -364,6 +402,26 @@ describe("Runs sheet presentation", () => {
       "expected a rule that mutes non-numeric (N/A) split cells",
     );
     assert.ok(formulas.some((f) => f.includes("COUNTIF")), "expected the best-time emphasis rule");
+
+    // A FALSE flag is never red: a run that does not count is normal, not a loss.
+    const countsRules = rules.filter((rule) => {
+      const f = rule.booleanRule?.condition?.values?.[0]?.userEnteredValue;
+      return typeof f === "string" && f.includes(`${COLUMN_LETTERS[COLUMN_INDEX.countsToward1000]}2=FALSE`);
+    });
+    assert.equal(countsRules.length, 1, "expected exactly one FALSE rule");
+    const falseFormat = countsRules[0].booleanRule.format;
+    assert.equal(falseFormat.backgroundColor, undefined, "FALSE must not be filled");
+    assert.notDeepEqual(falseFormat.textFormat?.foregroundColor, COLOR.redFg, "FALSE must not be red");
+
+    // A zero Elo change is blue *text*, not a blue-filled cell: a fill would read
+    // as a highlight rather than "nothing happened".
+    const eloZero = rules.find((rule) => {
+      const f = rule.booleanRule?.condition?.values?.[0]?.userEnteredValue;
+      return f === `=${COLUMN_LETTERS[COLUMN_INDEX.eloChange]}2=0`;
+    });
+    assert.ok(eloZero, "expected an Elo Change = 0 rule");
+    assert.equal(eloZero.booleanRule.format.backgroundColor, undefined, "Elo 0 must not be filled");
+    assert.deepEqual(eloZero.booleanRule.format.textFormat.foregroundColor, COLOR.blueFg);
 
     // Deathless zero, zero Elo change and a FALSE flag all read quietly.
     assert.ok(formulas.some((f) => /^=\w+2=0$/.test(f)), "expected a Deaths=0 rule");

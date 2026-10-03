@@ -23,7 +23,7 @@ export const SHEET_TITLES = [RUNS_SHEET, DASHBOARD_SHEET];
  * purple/blue = special, gray = neutral. Backgrounds stay soft so long
  * stretches of rows never become hard to read.
  */
-const COLOR = {
+export const COLOR = {
   headerA: { red: 0.122, green: 0.165, blue: 0.216 },
   headerB: { red: 0.173, green: 0.227, blue: 0.29 },
   headerResult: { red: 0.071, green: 0.267, blue: 0.18 },
@@ -408,8 +408,8 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
 
   // --- Counts Toward 1000 ----------------------------------------------------
   // TRUE is the only affirmative signal in the sheet, so it keeps the strong
-  // green. FALSE is deliberately near-inert: it is the common case and must not
-  // compete with Result.
+  // green. FALSE is deliberately inert: plain slate text, never red - a run that
+  // does not count is normal, not a failure, and must not read like a LOSS.
   const counts = col("countsToward1000");
   rules.push(
     customRule(counts, `=${letter("countsToward1000")}2=TRUE`, {
@@ -524,7 +524,10 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
   // value - not a gap - so it is shown explicitly and tinted blue: neutral
   // like slate, but cool rather than dead, so it reads as "nothing happened"
   // rather than "unknown".
-  const elo = col("eloChange");
+    // A zero change (a draw, or an uncounted round) is a real, useful value, not
+    // a gap, so it is shown as an explicit 0. Blue *text only*, no fill: a filled
+    // cell reads as an error/highlight, and "no movement" should stay quiet.
+    const elo = col("eloChange");
   rules.push(
     customRule(elo, `=${letter("eloChange")}2>0`, {
       textFormat: { foregroundColor: COLOR.greenFg, bold: true },
@@ -533,8 +536,7 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
       textFormat: { foregroundColor: COLOR.redFg, bold: true },
     }),
     customRule(elo, `=${letter("eloChange")}2=0`, {
-      backgroundColor: COLOR.blueBg,
-      textFormat: { foregroundColor: COLOR.blueFg, bold: true },
+      textFormat: { foregroundColor: COLOR.blueFg },
     }),
   );
 

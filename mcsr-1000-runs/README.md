@@ -103,15 +103,23 @@ re-run; `sync` never touches formatting):
   strict priority order): `Result` colours, `Counts Toward 1000`, a `Run #`
   accent, a subtle green-to-warm color scale on `Final Time` (fastest wins,
   no rainbow), a cyan highlight for the single best time in the sheet, quiet
-  slate italics for `N/A` cells, a deathless `Deaths 0`, a blue `Elo Change 0`,
-  `Deaths` 1+, the `Completion` labels, Elo gains/losses and `Data Status` - with
-  a nearly invisible alternating-row tint registered last so semantic colours
-  always win.
+  slate italics for `N/A` cells, a deathless `Deaths 0`, blue `Elo Change 0`
+  *text* (no fill - a filled cell reads as a highlight rather than "nothing
+  happened"), `Deaths` 1+, the `Completion` labels, Elo gains/losses and
+  `Data Status` - with a nearly invisible alternating-row tint registered last
+  so semantic colours always win. `Counts Toward 1000` is always `TRUE`/`FALSE`;
+  `FALSE` is plain slate text and never red, because a run that does not count
+  is normal, not a failure.
 - Absent values are shown deliberately rather than left blank: a split the run
   never reached (and `Death Messages` for a deathless run) reads `N/A`, a
-  missing `Elo Change` reads `0` in blue, and `Counts Toward 1000` is always an
-  explicit `TRUE`/`FALSE`. `N/A` is display-only - it deserialises back to an
-  absent value, so it never reaches the dashboard aggregates or a re-sync diff.
+  missing `Elo Change` reads `0`, a deathless run reads `Deaths 0`, and
+  `Counts Toward 1000` is always an explicit boolean. `N/A` is display-only - it
+  deserialises back to an absent value, so it never reaches the dashboard
+  aggregates or a re-sync diff.
+- These defaults also **backfill**: `sync` writes `FALSE`/`0` over an existing
+  blank cell, so rows imported before the defaults existed get them on the next
+  run. A blank value never overwrites a stored one, so this cannot wipe a
+  manual entry.
 - The Dashboard leads with a `X / 1000 Runs` hero plus a progress bar, then
   W/L/D/Forfeit counts (colour-accented), completion % and the timing stats.
 

@@ -109,8 +109,21 @@ export const cellEquals = (desired, actual, type) => {
     // not meaningfully changed and should not be rewritten.
     return Math.abs(left - right) < 2.5e-8;
   }
-  if (type === "bool") return Boolean(left) === Boolean(right);
-  if (typeof left === "number" || typeof right === "number") return Number(left) === Number(right);
+  // An explicit FALSE must still be written over an empty cell: blank reads as
+  // "no data", which is exactly what the boolean default exists to eliminate.
+  // (Blank *desired* still equals a stored FALSE - we never clear a value.)
+  if (type === "bool") {
+    const actualBlank = right === "" || right === null || right === undefined;
+    if (actualBlank && typeof left === "boolean") return false;
+    return Boolean(left) === Boolean(right);
+  }
+  if (typeof left === "number" || typeof right === "number") {
+    // A blank cell is NOT the same as a real 0/FALSE. Without this, sync reads
+    // an existing empty cell as "already false/zero" and never backfills the
+    // explicit value, so the column stays blank forever.
+    if (right === "" && left !== "") return false;
+    return Number(left) === Number(right);
+  }
   return String(left) === String(right);
 };
 
