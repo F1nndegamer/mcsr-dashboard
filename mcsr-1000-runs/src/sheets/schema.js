@@ -109,9 +109,23 @@ const COLUMN_WIDTHS = {
  * frozen header + id columns, filters, section-styled headers, separator
  * borders, readable number formats, column widths, the Completion Type
  * dropdown and the conditional formatting rules. Applied by
- * `npm run init-sheet`; idempotent (rules are cleared before re-adding).
+ * `npm run init-sheet`.
+ *
+ * `existingConditionalFormatRuleCount` is how many conditional-format rules the
+ * sheet already has (read from spreadsheet metadata before init). The Sheets
+ * API has NO "clear all conditional formats" request - rules are only added,
+ * deleted or updated **by index** - so every existing rule is deleted first,
+ * from the highest index down (descending order stays valid whether the API
+ * resolves indexes against the evolving list or the original one), then our
+ * rules are re-added. Repeated `init-sheet` runs therefore never duplicate
+ * rules and never touch anything outside this sheet's conditional formats.
  */
-export const runsSheetSetupRequests = ({ sheetId, capacity = 2500, currentRowCount = 1000 } = {}) => {
+export const runsSheetSetupRequests = ({
+  sheetId,
+  capacity = 2500,
+  currentRowCount = 1000,
+  existingConditionalFormatRuleCount = 0,
+} = {}) => {
   const requests = [];
 
   // --- grid size -------------------------------------------------------------
@@ -269,8 +283,13 @@ export const runsSheetSetupRequests = ({ sheetId, capacity = 2500, currentRowCou
     },
   });
 
-  // --- conditional formatting (clear first so re-init never duplicates) ------
-  requests.push({ clearConditionalFormatRules: { range: { sheetId } } });
+  // --- conditional formatting (delete existing rules first so re-init never
+  // duplicates). No "clear all rules" request exists in the Sheets API, so the
+  // pre-existing rules are removed one by one, highest index first, before the
+  // full set is re-added. -----------------------------------------------
+  for (let index = existingConditionalFormatRuleCount - 1; index >= 0; index -= 1) {
+    requests.push({ deleteConditionalFormatRule: { index, sheetId } });
+  }
   conditionalFormatRules({ sheetId, capacity }).forEach((rule, ruleIndex) => {
     requests.push({ addConditionalFormatRule: { rule, index: ruleIndex } });
   });
@@ -357,8 +376,12 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
   rules.push({
     ranges: [col("finalTimeMs")],
     gradientRule: {
+      // InterpolationPoint.value is a JSON *string* field: a numeric 50 is
+      // rejected live with a TYPE_STRING error. PERCENTILE "50" pins the
+      // midpoint to the column's median, so fast times stay green while slow
+      // ones stay neutral warm (MIN/MAX carry no value by definition).
       minpoint: { color: COLOR.timeMin, type: "MIN" },
-      midpoint: { color: COLOR.timeMid, type: "PERCENTILE", value: 50 },
+      midpoint: { color: COLOR.timeMid, type: "PERCENTILE", value: "50" },
       maxpoint: { color: COLOR.timeMax, type: "MAX" },
     },
   });

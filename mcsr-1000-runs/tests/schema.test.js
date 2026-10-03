@@ -240,11 +240,25 @@ describe("Runs sheet presentation", () => {
     }
   });
 
-  it("clears old conditional rules before re-adding them (idempotent init)", () => {
-    const clearIndex = requests.findIndex((request) => request.clearConditionalFormatRules);
-    const firstAdd = requests.findIndex((request) => request.addConditionalFormatRule);
-    assert.ok(clearIndex !== -1 && firstAdd !== -1 && clearIndex < firstAdd);
-    const addIndexes = requests
+  it("deletes every existing conditional rule before re-adding them (idempotent init)", () => {
+    // Clean sheet: no delete requests, and never the invented
+    // `clearConditionalFormatRules` type (the live API rejects it).
+    const clean = runsSheetSetupRequests({ sheetId: 7, capacity: 2500, existingConditionalFormatRuleCount: 0 });
+    assert.equal(clean.some((request) => request.deleteConditionalFormatRule), false);
+    assert.equal(clean.some((request) => request.clearConditionalFormatRules), false);
+
+    // Pre-existing rules are deleted highest-index-first, all before the first
+    // re-add, so rule indexes stay valid however the API resolves them.
+    const dirty = runsSheetSetupRequests({ sheetId: 7, capacity: 2500, existingConditionalFormatRuleCount: 3 });
+    const deletes = dirty.filter((request) => request.deleteConditionalFormatRule);
+    assert.deepEqual(deletes.map((request) => request.deleteConditionalFormatRule.index), [2, 1, 0]);
+    for (const request of deletes) {
+      assert.equal(request.deleteConditionalFormatRule.sheetId, 7);
+    }
+    const lastDelete = dirty.map((request) => Boolean(request.deleteConditionalFormatRule)).lastIndexOf(true);
+    const firstAdd = dirty.findIndex((request) => request.addConditionalFormatRule);
+    assert.ok(lastDelete !== -1 && firstAdd !== -1 && lastDelete < firstAdd);
+    const addIndexes = dirty
       .filter((request) => request.addConditionalFormatRule)
       .map((request) => request.addConditionalFormatRule.index);
     assert.deepEqual(addIndexes, addIndexes.map((_, index) => index));
@@ -261,6 +275,22 @@ describe("Runs sheet presentation", () => {
     // Final Time uses a gradient (not a rainbow): one gradient rule only.
     const gradients = rules.filter((rule) => rule.gradientRule);
     assert.equal(gradients.length, 1);
+    const gradient = gradients[0].gradientRule;
+    // MIN/MAX anchor the extremes without a value; the midpoint is a STRING
+    // percentile (the live API rejects numeric values: TYPE_STRING error) and
+    // follows the data median, so fastest times stay green and slow ones stay
+    // neutral warm.
+    assert.equal(gradient.minpoint.type, "MIN");
+    assert.equal("value" in gradient.minpoint, false);
+    assert.equal(gradient.midpoint.type, "PERCENTILE");
+    assert.equal(gradient.midpoint.value, "50");
+    assert.equal(typeof gradient.midpoint.value, "string");
+    assert.equal(gradient.maxpoint.type, "MAX");
+    assert.equal("value" in gradient.maxpoint, false);
+    // Restrained green -> white -> soft warm palette, never a rainbow.
+    assert.deepEqual(gradient.minpoint.color, { red: 0.847, green: 0.937, blue: 0.855 });
+    assert.deepEqual(gradient.midpoint.color, { red: 1, green: 1, blue: 1 });
+    assert.deepEqual(gradient.maxpoint.color, { red: 0.988, green: 0.914, blue: 0.882 });
     // The alternating-row tint must be the lowest-priority rule so semantic
     // colours always win.
     const last = rules[rules.length - 1];

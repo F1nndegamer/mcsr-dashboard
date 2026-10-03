@@ -1,4 +1,5 @@
 import { parseA1Range } from "./backend.js";
+import { validateBatchUpdateRequests } from "./requestSchema.js";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -113,14 +114,21 @@ export class GoogleSheetsBackend {
     return { spreadsheetId: created.spreadsheetId, spreadsheetUrl: created.spreadsheetUrl };
   }
 
+  /**
+   * Fresh spreadsheet metadata: sheet properties plus each sheet's
+   * conditional-format rules (the API exposes them as `conditionalFormats`).
+   * The rule count is what `initializeSheets` uses to delete stale rules
+   * before re-adding ours - the Sheets API has no "clear all rules" request.
+   */
   async getSheetMetadata() {
     const data = await this.call(
-      `${SHEETS_API}/${this.spreadsheetId}?fields=sheets.properties`,
+      `${SHEETS_API}/${this.spreadsheetId}?fields=sheets.properties,sheets.conditionalFormats`,
     );
     return (data.sheets ?? []).map((sheet) => ({
       title: sheet.properties.title,
       sheetId: sheet.properties.sheetId,
       index: sheet.properties.index,
+      conditionalFormatRuleCount: (sheet.conditionalFormats ?? []).length,
     }));
   }
 
@@ -177,6 +185,9 @@ export class GoogleSheetsBackend {
 
   async batchUpdateSpreadsheet({ requests = [] } = {}) {
     if (requests.length === 0) return { replies: [] };
+    // Validate against the official request schema BEFORE hitting the wire so
+    // an invalid payload fails locally instead of as an opaque live API error.
+    validateBatchUpdateRequests(requests);
     return this.call(`${SHEETS_API}/${this.spreadsheetId}:batchUpdate`, {
       method: "POST",
       body: { requests },

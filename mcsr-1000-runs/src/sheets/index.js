@@ -98,6 +98,9 @@ export const initializeSheets = async ({ backend, config, logger = console }) =>
       requests: runsSheetSetupRequests({
         sheetId: runsSheet.sheetId,
         capacity: config.sheetRowCapacity,
+        // Existing conditional-format rules are deleted first (by index) so
+        // re-running init never accumulates duplicates. See schema.js.
+        existingConditionalFormatRuleCount: runsSheet.conditionalFormatRuleCount ?? 0,
       }),
     });
   } else {

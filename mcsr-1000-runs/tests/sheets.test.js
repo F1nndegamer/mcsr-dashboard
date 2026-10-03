@@ -47,4 +47,32 @@ describe("sheet setup + duplicate-safe reads", () => {
     const { records } = await readRunsSheet({ backend });
     assert.deepEqual(records, []);
   });
+
+  it("re-running initializeSheets deletes old conditional rules before re-adding", async () => {
+    const backend = new MemoryBackend();
+    await initializeSheets({ backend, config: config() });
+    const runsSheet = (await backend.getSheetMetadata()).find((sheet) => sheet.title === "Runs");
+    const ruleCount = runsSheet.conditionalFormatRuleCount;
+    assert.ok(ruleCount > 0, "first init should install conditional-format rules");
+
+    const marker = backend.sheetRequests.length;
+    await initializeSheets({ backend, config: config() });
+    const secondRun = backend.sheetRequests.slice(marker);
+
+    // Every pre-existing rule is deleted, highest index first, before the
+    // first re-add - the exact mechanism that keeps live init idempotent.
+    const deletes = secondRun.filter((request) => request.deleteConditionalFormatRule);
+    assert.equal(deletes.length, ruleCount);
+    assert.deepEqual(
+      deletes.map((request) => request.deleteConditionalFormatRule.index),
+      Array.from({ length: ruleCount }, (_, index) => ruleCount - 1 - index),
+    );
+    const lastDelete = secondRun.map((request) => Boolean(request.deleteConditionalFormatRule)).lastIndexOf(true);
+    const firstAdd = secondRun.findIndex((request) => request.addConditionalFormatRule);
+    assert.ok(firstAdd !== -1 && lastDelete < firstAdd);
+
+    // The simulated rule list never accumulates duplicates.
+    const again = (await backend.getSheetMetadata()).find((sheet) => sheet.title === "Runs");
+    assert.equal(again.conditionalFormatRuleCount, ruleCount);
+  });
 });

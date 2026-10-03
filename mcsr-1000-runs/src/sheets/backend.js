@@ -13,7 +13,8 @@
  *   batchUpdateSpreadsheet(requests)  -> raw Sheets API requests (formatting,
  *                                        validation, frozen rows, filters)
  *   createSpreadsheet(title)          -> { spreadsheetId }
- *   getSheetMetadata()                -> [{ title, sheetId, index }]
+ *   getSheetMetadata()                -> [{ title, sheetId, index,
+ *                                           conditionalFormatRuleCount }]
  */
 
 /** Parses "Sheet!A2:AB7" / "A2" / "Sheet!A:A" into coordinates (1-based). */
@@ -80,13 +81,21 @@ export class MemoryBackend {
         sheetId: this.sheets.size,
         index: this.sheets.size,
         rows: [],
+        // Mirrors Sheet.conditionalFormats so init idempotency can be tested
+        // offline exactly the way the live API behaves.
+        conditionalFormats: [],
       });
     }
     return this.sheets.get(title);
   }
 
   async getSheetMetadata() {
-    return [...this.sheets.values()].map(({ title, sheetId, index }) => ({ title, sheetId, index }));
+    return [...this.sheets.values()].map(({ title, sheetId, index, conditionalFormats }) => ({
+      title,
+      sheetId,
+      index,
+      conditionalFormatRuleCount: (conditionalFormats ?? []).length,
+    }));
   }
 
   setCell(sheet, rowIndex, colIndex, value) {
@@ -129,7 +138,42 @@ export class MemoryBackend {
     return { totalUpdatedCells: this.valueRequests.length };
   }
 
+  findSheetById(sheetId) {
+    for (const sheet of this.sheets.values()) {
+      if (sheet.sheetId === sheetId) return sheet;
+    }
+    return null;
+  }
+
+  /**
+   * Records formatting requests and mirrors the conditional-format rule list
+   * (add / delete / update by index) exactly like the live API, so repeated
+   * `initializeSheets` runs can be asserted to stay idempotent offline.
+   */
   async batchUpdateSpreadsheet({ requests = [] } = {}) {
+    for (const request of requests) {
+      const [type] = Object.keys(request);
+      const payload = request[type] ?? {};
+      // addConditionalFormatRule carries no top-level sheetId: the target
+      // sheet lives in rule.ranges[0].sheetId (delete/update do have one).
+      const sheet = this.findSheetById(payload.sheetId ?? payload.rule?.ranges?.[0]?.sheetId);
+      if (!sheet) continue;
+      const rules = sheet.conditionalFormats ?? (sheet.conditionalFormats = []);
+      if (type === "addConditionalFormatRule") {
+        const index = Math.min(payload.index ?? rules.length, rules.length);
+        rules.splice(index, 0, payload.rule);
+      } else if (type === "deleteConditionalFormatRule") {
+        if (payload.index >= 0 && payload.index < rules.length) rules.splice(payload.index, 1);
+      } else if (type === "updateConditionalFormatRule") {
+        if (payload.rule !== undefined && payload.index < rules.length) {
+          rules[payload.index] = payload.rule;
+        }
+        if (payload.newIndex !== undefined && payload.index < rules.length) {
+          const [moved] = rules.splice(payload.index, 1);
+          rules.splice(payload.newIndex, 0, moved);
+        }
+      }
+    }
     this.sheetRequests.push(...requests);
     return { replies: requests.map(() => ({})) };
   }

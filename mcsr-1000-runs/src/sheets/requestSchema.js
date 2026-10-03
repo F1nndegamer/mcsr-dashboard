@@ -24,6 +24,7 @@
 export const BATCH_UPDATE_REQUEST_TYPES = [
   "addBanding",
   "addChart",
+  "addCommentReply",
   "addConditionalFormatRule",
   "addDataSource",
   "addDimensionGroup",
@@ -79,7 +80,7 @@ export const BATCH_UPDATE_REQUEST_TYPES = [
   "updateBanding",
   "updateBorders",
   "updateChartSpec",
-  "updateComment",
+  "updateCells",
   "updateCommentPost",
   "updateConditionalFormatRule",
   "updateDataSource",
@@ -103,6 +104,8 @@ export const INTERPOLATION_POINT_TYPES = [
   "MAX",
   "NUMBER",
   "PERCENT",
+  "PERCENTILE",
+];
 
 const REQUEST_TYPE_SET = new Set(BATCH_UPDATE_REQUEST_TYPES);
 
@@ -158,6 +161,16 @@ const validateInterpolationPoint = (point, label, index, request) => {
       index,
       `${label}.value must be a string (received ${typeof point.value} ` +
         `${JSON.stringify(point.value)}); InterpolationPoint.value is a string field.`,
+      request,
+    );
+  }
+  // The string must be the number itself (e.g. "50" for PERCENTILE) or a
+  // formula - anything else fails server-side when the rule is applied.
+  if (!point.value.startsWith("=") && !/^-?\d+(\.\d+)?$/.test(point.value)) {
+    fail(
+      index,
+      `${label}.value must be a numeric string or a formula ` +
+        `(received ${JSON.stringify(point.value)}).`,
       request,
     );
   }
@@ -274,5 +287,3 @@ export const validateBatchUpdateRequests = (requests) => {
   return requests;
 };
 
-  "PERCENTILE",
-];
