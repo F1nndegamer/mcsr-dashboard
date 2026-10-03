@@ -462,6 +462,14 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
     textEqRule(col("deathMessages"), "N/A", {
       textFormat: { foregroundColor: COLOR.slateFg, italic: true },
     }),
+    // Elo Before/After fall back to "N/A" when the API reported no rating. These
+    // are ratings, not deltas, so a numeric default would be a lie.
+    textEqRule(col("eloBefore"), "N/A", {
+      textFormat: { foregroundColor: COLOR.slateFg, italic: true },
+    }),
+    textEqRule(col("eloAfter"), "N/A", {
+      textFormat: { foregroundColor: COLOR.slateFg, italic: true },
+    }),
   );
 
   // --- Deathless runs: a clean, deliberate zero ---------------------------
@@ -519,22 +527,25 @@ const conditionalFormatRules = ({ sheetId, capacity }) => {
     }),
   );
 
-  // --- Elo change: violet gains, red losses, blue for no movement ----------
-  // A zero change (typically a draw, or an uncounted round) is a real, useful
-  // value - not a gap - so it is shown explicitly and tinted blue: neutral
-  // like slate, but cool rather than dead, so it reads as "nothing happened"
-  // rather than "unknown".
-    // A zero change (a draw, or an uncounted round) is a real, useful value, not
-    // a gap, so it is shown as an explicit 0. Blue *text only*, no fill: a filled
-    // cell reads as an error/highlight, and "no movement" should stay quiet.
-    const elo = col("eloChange");
+  // --- Elo change ------------------------------------------------------------
+  // The DRAW rule is registered BEFORE the gain/loss rules because conditional
+  // formats are priority-ordered: a draw must read blue even when the API reports
+  // a stray non-zero change, since a draw is definitionally not a rating move.
+  const elo = col("eloChange");
+  const resultLetter = letter("result");
   rules.push(
+    customRule(elo, `=$${resultLetter}2="DRAW"`, {
+      textFormat: { foregroundColor: COLOR.blueFg },
+    }),
     customRule(elo, `=${letter("eloChange")}2>0`, {
       textFormat: { foregroundColor: COLOR.greenFg, bold: true },
     }),
     customRule(elo, `=${letter("eloChange")}2<0`, {
       textFormat: { foregroundColor: COLOR.redFg, bold: true },
     }),
+    // A zero change (an uncounted round) is a real, useful value, not a gap, so
+    // it is shown as an explicit 0. Blue *text only*, no fill: a filled cell
+    // reads as an error/highlight, and "nothing happened" should stay quiet.
     customRule(elo, `=${letter("eloChange")}2=0`, {
       textFormat: { foregroundColor: COLOR.blueFg },
     }),

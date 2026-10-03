@@ -69,7 +69,12 @@ export const buildRecordSet = ({ sheetRecords = [], normalizedById = new Map() }
 
   for (const [matchId, apiRecord] of normalizedById) {
     const existing = byId.get(matchId);
-    const merged = { ...(existing ?? {}), ...apiRecord };
+    // An *explicit* undefined from the API must not clobber a value the sheet
+    // already holds: `{...a, ...b}` copies an own `key: undefined` over `a.key`.
+    // extractElo can return exactly that when only one of before/change exists,
+    // which would otherwise erase a good Elo Before/After and then write "N/A".
+    const defined = Object.fromEntries(Object.entries(apiRecord).filter(([, v]) => v !== undefined));
+    const merged = { ...(existing ?? {}), ...defined };
     for (const key of MANUAL_FIELDS) {
       if (API_SEEDED_FIELDS.includes(key)) {
         // Seeded once: a value already in the sheet (auto-seeded or typed)

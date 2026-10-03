@@ -168,6 +168,9 @@ export const parseCompletionType = (value) => {
   return COMPLETION_TYPES.some((entry) => entry.value === numeric) ? numeric : undefined;
 };
 
+/** True only for a real, non-zero count - used to decide "deathless". */
+const isPositiveCount = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+
 /**
  * Serialises one normalised record into a RAW value array for the Runs sheet.
  * The `Completion` column is intentionally left empty: it holds a generated
@@ -180,14 +183,21 @@ export const serializeRecord = (record) =>
     switch (column.type) {
       case "int":
       case "manualInt":
-      case "apiSeededInt":
-        // An unknown Elo change is reported as 0 rather than left blank: a draw
-        // genuinely moves no rating, and a visible 0 (tinted blue) is far easier
-        // to read at a glance than an empty cell.
-        if (column.key === "eloChange") {
-          return typeof value === "number" && Number.isFinite(value) ? value : 0;
-        }
-        return typeof value === "number" && Number.isFinite(value) ? value : "";
+      case "apiSeededInt": {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        // Elo Change: a draw genuinely moves no rating, so an unknown change is
+        // reported as 0 (blue text) rather than left blank.
+        if (column.key === "eloChange") return 0;
+        // Deaths: a run with no death events has 0 deaths, so an unset cell is
+        // filled in rather than left looking like missing data. Deaths stays
+        // user-owned - this only affects the *displayed* value, never a stored one.
+        if (column.key === "deaths") return 0;
+        // Elo Before/After are ratings, not deltas. "N/A" says "the API did not
+        // report a rating for this match", which 0 could never mean - a 0 rating
+        // is a real (if terrible) value.
+        if (column.key === "eloBefore" || column.key === "eloAfter") return NOT_APPLICABLE;
+        return "";
+      }
       case "bool":
         // Always an explicit TRUE/FALSE. An empty cell reads as "no data" and
         // hides the meaning "this run did not count".
@@ -204,8 +214,10 @@ export const serializeRecord = (record) =>
         return parsed === undefined ? "" : parsed;
       }
       case "manualText":
-        // A deathless run has no death messages to record.
-        if (column.key === "deathMessages" && record.deaths === 0 && isBlank(value)) {
+        // A deathless run has no death messages to record. `deaths` is shown as
+        // 0 whenever it is not a real count, so this uses the same condition -
+        // otherwise a filled-in 0 would sit next to a blank message column.
+        if (column.key === "deathMessages" && !isPositiveCount(record.deaths) && isBlank(value)) {
           return NOT_APPLICABLE;
         }
         return isBlank(value) ? "" : String(value);
