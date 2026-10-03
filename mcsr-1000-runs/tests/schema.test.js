@@ -470,7 +470,7 @@ describe("Runs sheet presentation", () => {
     for (const key of ["eloBefore", "eloAfter"]) {
       const nA = rules.find((rule) => {
         const f = rule.booleanRule?.condition?.values?.[0]?.userEnteredValue;
-        return f === `"N/A"` && rule.ranges?.[0]?.startColumnIndex === COLUMN_INDEX[key];
+        return f === "N/A" && rule.booleanRule.condition.type === "TEXT_EQ" && rule.ranges?.[0]?.startColumnIndex === COLUMN_INDEX[key];
       });
       assert.ok(nA, `expected an N/A rule on ${key}`);
       assert.equal(nA.booleanRule.format.textFormat.italic, true);

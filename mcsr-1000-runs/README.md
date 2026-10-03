@@ -110,16 +110,21 @@ re-run; `sync` never touches formatting):
   so semantic colours always win. `Counts Toward 1000` is always `TRUE`/`FALSE`;
   `FALSE` is plain slate text and never red, because a run that does not count
   is normal, not a failure.
-- Absent values are shown deliberately rather than left blank: a split the run
-  never reached (and `Death Messages` for a deathless run) reads `N/A`, a
-  missing `Elo Change` reads `0`, a deathless run reads `Deaths 0`, and
-  `Counts Toward 1000` is always an explicit boolean. `N/A` is display-only - it
-  deserialises back to an absent value, so it never reaches the dashboard
-  aggregates or a re-sync diff.
-- These defaults also **backfill**: `sync` writes `FALSE`/`0` over an existing
-  blank cell, so rows imported before the defaults existed get them on the next
-  run. A blank value never overwrites a stored one, so this cannot wipe a
-  manual entry.
+- Absent values are auto-filled rather than left blank: `Counts Toward 1000` is
+  always `TRUE`/`FALSE`; `Deaths` is `0` when no count was found; `Elo Change` is
+  `0` when the API reported none; `Elo Before`/`Elo After` are `N/A` when no
+  rating was reported (a rating of `0` would be a real, if terrible, value, so
+  only a delta can default to zero); a split the run never reached and `Death
+  Messages` on a deathless run are `N/A`.
+- `N/A` is display-only - it deserialises back to an absent value, so it never
+  reaches the dashboard aggregates or a re-sync diff.
+- These defaults **backfill**: `sync` writes them over existing blank cells, so
+  rows imported before the defaults existed get them on the next run. A blank
+  value never overwrites a stored one, so this cannot wipe a manual entry, and
+  an explicit `undefined` from the API never erases a stored value either.
+- `Elo Change` is blue text for a `DRAW` *and* for a `0`, and blue is applied
+  before the green/red gain-loss rules so a draw stays blue even if the API
+  reports a stray non-zero change.
 - The Dashboard leads with a `X / 1000 Runs` hero plus a progress bar, then
   W/L/D/Forfeit counts (colour-accented), completion % and the timing stats.
 
