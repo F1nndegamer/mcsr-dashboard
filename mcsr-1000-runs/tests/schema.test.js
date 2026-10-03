@@ -160,20 +160,38 @@ describe("display defaults for absent values", () => {
     assert.equal(cell({ matchId: 1, deaths: 0, deathMessages: "" }, "deathMessages"), "N/A");
     assert.equal(cell({ matchId: 2, deaths: 0, deathMessages: "close call" }, "deathMessages"), "close call");
     assert.equal(cell({ matchId: 3, deaths: 2, deathMessages: "lava" }, "deathMessages"), "lava");
-    // Deaths still unknown (no timeline data) stays blank - that is genuinely
-    // unknown, not "no deaths", and Data Status must keep flagging it.
-    assert.equal(cell({ matchId: 4, deaths: undefined, deathMessages: "" }, "deathMessages"), "");
-    assert.equal(cell({ matchId: 4, deaths: undefined }, "deaths"), "");
+    // Deaths is always displayed as a number now, so an unknown count shows 0
+    // and its (necessarily empty) message column shows N/A rather than a blank
+    // cell that would look like an oversight next to a filled-in 0.
+    assert.equal(cell({ matchId: 4, deaths: undefined }, "deaths"), 0);
+    assert.equal(cell({ matchId: 4, deaths: undefined, deathMessages: "" }, "deathMessages"), "N/A");
   });
 
-  it("shows 0 for an absent Elo change so a draw reads as 'no movement'", () => {
-    assert.equal(cell({ matchId: 1, eloChange: undefined }, "eloChange"), 0);
-    assert.equal(cell({ matchId: 2, eloChange: 0 }, "eloChange"), 0);
-    assert.equal(cell({ matchId: 3, eloChange: -14 }, "eloChange"), -14);
-    // Other numeric columns keep their blank-when-unknown behaviour.
-    assert.equal(cell({ matchId: 4, eloBefore: undefined }, "eloBefore"), "");
-    // A deathless 0 is a real number, and must be filled in rather than blank.
+  it("fills Deaths with 0 whenever no real count was found", () => {
     assert.equal(cell({ matchId: 1, deaths: 0 }, "deaths"), 0);
+    assert.equal(cell({ matchId: 2, deaths: undefined }, "deaths"), 0);
+    // A real count is always preserved verbatim.
+    assert.equal(cell({ matchId: 3, deaths: 4 }, "deaths"), 4);
+  });
+
+  it("shows N/A for a missing Elo Before/After but 0 for a missing Elo change", () => {
+    // Ratings are not deltas: 0 would be a real (terrible) rating, so the
+    // placeholder has to say "not reported".
+    assert.equal(cell({ matchId: 1, eloBefore: undefined }, "eloBefore"), "N/A");
+    assert.equal(cell({ matchId: 1, eloAfter: undefined }, "eloAfter"), "N/A");
+    assert.equal(cell({ matchId: 2, eloBefore: 1500, eloAfter: 1512 }, "eloBefore"), 1500);
+    assert.equal(cell({ matchId: 2, eloBefore: 1500, eloAfter: 1512 }, "eloAfter"), 1512);
+
+    // A change genuinely can be zero, so zero is the right default there.
+    assert.equal(cell({ matchId: 3, eloChange: undefined }, "eloChange"), 0);
+    assert.equal(cell({ matchId: 3, eloChange: 0 }, "eloChange"), 0);
+    assert.equal(cell({ matchId: 3, eloChange: -14 }, "eloChange"), -14);
+  });
+
+  it("round-trips the Elo N/A placeholder back to an absent value", () => {
+    const record = deserializeRow(serializeRecord({ matchId: 1, eloBefore: undefined }));
+    assert.equal(record.eloBefore, undefined, "N/A must not become a number on read");
+    assert.equal(serializeRecord(record)[COLUMN_INDEX.eloBefore], "N/A");
   });
 
   it("always writes Counts Toward 1000 as an explicit boolean", () => {
@@ -289,6 +307,17 @@ describe("planRunsUpdates", () => {
     // And once written, a second pass must plan nothing.
     const again = planRunsUpdates({ records: [record], existingRows: [desired] });
     assert.deepEqual(again.updates, []);
+  });
+
+  it("does not let an explicit undefined from the API erase a stored Elo value", () => {
+    // `{...existing, ...api}` copies an own `key: undefined` over the stored value.
+    // extractElo returns exactly that when only one of before/change is present.
+    const merged = buildRecordSet({
+      sheetRecords: [{ matchId: 1, eloBefore: 1500, eloAfter: 1505 }],
+      normalizedById: new Map([[1, { matchId: 1, eloBefore: 1500, eloChange: 5, eloAfter: undefined }]]),
+    });
+    assert.equal(merged[0].eloAfter, 1505, "a stored Elo After must survive an undefined API value");
+    assert.equal(merged[0].eloChange, 5);
   });
 });
 
@@ -422,6 +451,30 @@ describe("Runs sheet presentation", () => {
     assert.ok(eloZero, "expected an Elo Change = 0 rule");
     assert.equal(eloZero.booleanRule.format.backgroundColor, undefined, "Elo 0 must not be filled");
     assert.deepEqual(eloZero.booleanRule.format.textFormat.foregroundColor, COLOR.blueFg);
+
+    // A DRAW is blue even when the API reports a non-zero change, so its rule
+    // must be registered BEFORE the gain/loss rules.
+    const drawIndex = formulas.indexOf(`=$${COLUMN_LETTERS[COLUMN_INDEX.result]}2="DRAW"`);
+    const gainIndex = formulas.indexOf(`=${COLUMN_LETTERS[COLUMN_INDEX.eloChange]}2>0`);
+    const lossIndex = formulas.indexOf(`=${COLUMN_LETTERS[COLUMN_INDEX.eloChange]}2<0`);
+    assert.ok(drawIndex !== -1, "expected a DRAW rule on Elo Change");
+    assert.ok(drawIndex < gainIndex && drawIndex < lossIndex, "DRAW must outrank gain/loss");
+    // `formulas` is filtered, so its indices do not line up with `rules`.
+    const drawRule = rules.find(
+      (rule) => rule.booleanRule?.condition?.values?.[0]?.userEnteredValue === `=$${COLUMN_LETTERS[COLUMN_INDEX.result]}2="DRAW"`,
+    );
+    assert.deepEqual(drawRule.booleanRule.format.textFormat.foregroundColor, COLOR.blueFg);
+    assert.equal(drawRule.booleanRule.format.backgroundColor, undefined);
+
+    // Elo Before/After N/A placeholders are muted like the other N/A cells.
+    for (const key of ["eloBefore", "eloAfter"]) {
+      const nA = rules.find((rule) => {
+        const f = rule.booleanRule?.condition?.values?.[0]?.userEnteredValue;
+        return f === `"N/A"` && rule.ranges?.[0]?.startColumnIndex === COLUMN_INDEX[key];
+      });
+      assert.ok(nA, `expected an N/A rule on ${key}`);
+      assert.equal(nA.booleanRule.format.textFormat.italic, true);
+    }
 
     // Deathless zero, zero Elo change and a FALSE flag all read quietly.
     assert.ok(formulas.some((f) => /^=\w+2=0$/.test(f)), "expected a Deaths=0 rule");
