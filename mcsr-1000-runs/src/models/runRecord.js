@@ -7,6 +7,13 @@ import { COMPLETION_FORMULA_TEMPLATE, COMPLETION_TYPES, MANUAL_FIELDS } from "./
  * `type` drives serialisation:
  *   int | text | bool | datetime | duration | formula
  *   manualInt | manualText | manualCompletion  -> user-owned
+ *   apiSeededInt -> auto-filled from the API (death count), then user-owned:
+ *     sync writes it only when the sheet cell is empty
+ *
+ * Death handling: `Deaths` is auto-seeded from `projectelo.timeline.death`
+ * entries (one per real death; `death_spawnpoint` is a spawn-set event and is
+ * explicitly NOT counted). Once the sheet has a value - auto-seeded or typed
+ * by the user - sync never overwrites it.
  *
  * @typedef {Object} MCSRRunRecord
  * @property {number} [runNumber]        sequential index of qualifying runs
@@ -22,15 +29,13 @@ import { COMPLETION_FORMULA_TEMPLATE, COMPLETION_TYPES, MANUAL_FIELDS } from "./
  * @property {number} [owSplitMs]
  * @property {number} [netherSplitMs]
  * @property {string} [bastionType]
- * @property {string} [bastionVariant]   manual
  * @property {number} [bastionTimeMs]
- * @property {number} [blazeRods]        manual
  * @property {number} [endSplitMs]
  * @property {string} [endTowers]        compact display of raw towers
  * @property {-1|0|1} [completionType]   manual
  * @property {string} completion         formula-generated label
  * @property {number} [finalTimeMs]
- * @property {number} [deaths]           manual
+ * @property {number} [deaths]           API-seeded, then user-owned
  * @property {string} [deathMessages]    manual
  * @property {number} [eloBefore]
  * @property {number} [eloChange]
@@ -50,18 +55,16 @@ export const RUNS_COLUMNS = Object.freeze([
   { key: "countsToward1000", header: "Counts Toward 1000", type: "bool" },
   { key: "seed", header: "Seed", type: "text" },
   { key: "seedType", header: "Seed Type", type: "text" },
-  { key: "owSplitMs", header: "OW Split", type: "duration", numberFormat: "[h]:mm:ss.000" },
-  { key: "netherSplitMs", header: "Nether Split", type: "duration", numberFormat: "[h]:mm:ss.000" },
+  { key: "owSplitMs", header: "OW Split", type: "duration", numberFormat: "[mm]:ss.000" },
+  { key: "netherSplitMs", header: "Nether Split", type: "duration", numberFormat: "[mm]:ss.000" },
   { key: "bastionType", header: "Bastion Type", type: "text" },
-  { key: "bastionVariant", header: "Bastion Variant", type: "manualText" },
-  { key: "bastionTimeMs", header: "Bastion Time", type: "duration", numberFormat: "[h]:mm:ss.000" },
-  { key: "blazeRods", header: "Blaze Rods", type: "manualInt", numberFormat: "0" },
-  { key: "endSplitMs", header: "End Split", type: "duration", numberFormat: "[h]:mm:ss.000" },
+  { key: "bastionTimeMs", header: "Bastion Time", type: "duration", numberFormat: "[mm]:ss.000" },
+  { key: "endSplitMs", header: "End Split", type: "duration", numberFormat: "[mm]:ss.000" },
   { key: "endTowers", header: "End Towers", type: "text" },
   { key: "completionType", header: "Completion Type", type: "manualCompletion", numberFormat: "0" },
   { key: "completion", header: "Completion", type: "formula" },
-  { key: "finalTimeMs", header: "Final Time", type: "duration", numberFormat: "[h]:mm:ss.000" },
-  { key: "deaths", header: "Deaths", type: "manualInt", numberFormat: "0" },
+  { key: "finalTimeMs", header: "Final Time", type: "duration", numberFormat: "[mm]:ss.000" },
+  { key: "deaths", header: "Deaths", type: "apiSeededInt", numberFormat: "0" },
   { key: "deathMessages", header: "Death Messages", type: "manualText" },
   { key: "eloBefore", header: "Elo Before", type: "int", numberFormat: "0" },
   { key: "eloChange", header: "Elo Change", type: "int", numberFormat: "0" },
@@ -95,6 +98,30 @@ export const COLUMN_INDEX = Object.freeze(
 export const LAST_COLUMN_LETTER = COLUMN_LETTERS[COLUMN_COUNT - 1];
 
 export const headerRow = () => RUNS_COLUMNS.map((column) => column.header);
+
+/**
+ * Visual sections of the Runs sheet, in column order. The sheet never inserts
+ * blank spacer columns - grouping comes from header shading, column widths and
+ * section-separator borders driven purely by these `startIndex`/`endIndex`
+ * bounds (inclusive, 0-based).
+ */
+export const RUNS_SECTIONS = Object.freeze(
+  [
+    { key: "identification", label: "IDENTIFICATION", startKey: "runNumber" },
+    { key: "result", label: "RESULT", startKey: "result" },
+    { key: "overworld", label: "OVERWORLD", startKey: "seed" },
+    { key: "nether", label: "NETHER", startKey: "netherSplitMs" },
+    { key: "end", label: "END", startKey: "endSplitMs" },
+    { key: "final", label: "FINAL", startKey: "finalTimeMs" },
+    { key: "ranked", label: "RANKED", startKey: "eloBefore" },
+    { key: "user", label: "USER", startKey: "notes" },
+  ].map((section, index, all) => {
+    const startIndex = COLUMN_INDEX[section.startKey];
+    const endIndex =
+      index + 1 < all.length ? COLUMN_INDEX[all[index + 1].startKey] - 1 : COLUMN_COUNT - 1;
+    return { ...section, startIndex, endIndex };
+  }),
+);
 
 /** Google Sheets serial day number for 1970-01-01T00:00:00Z. */
 export const SHEETS_EPOCH_OFFSET_DAYS = 25569;
@@ -145,6 +172,7 @@ export const serializeRecord = (record) =>
     switch (column.type) {
       case "int":
       case "manualInt":
+      case "apiSeededInt":
         return typeof value === "number" && Number.isFinite(value) ? value : "";
       case "bool":
         return typeof value === "boolean" ? value : isBlank(value) ? "" : Boolean(value);
@@ -174,7 +202,8 @@ export const deserializeRow = (cells = []) => {
     const value = cells[index] === undefined || cells[index] === null ? "" : cells[index];
     switch (column.type) {
       case "int":
-      case "manualInt": {
+      case "manualInt":
+      case "apiSeededInt": {
         if (isBlank(value)) break;
         const numeric = typeof value === "number" ? value : Number(value);
         if (Number.isFinite(numeric)) out[column.key] = numeric;

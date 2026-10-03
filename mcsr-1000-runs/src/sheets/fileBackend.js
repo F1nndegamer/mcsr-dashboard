@@ -46,6 +46,12 @@ export class FileBackend extends MemoryBackend {
     return result;
   }
 
+  async clearRange(a1) {
+    const result = await super.clearRange(a1);
+    await this.persist();
+    return result;
+  }
+
   /** Restores the previous run so incremental sync can be demonstrated. */
   async load() {
     for (const title of ["Runs", "Dashboard"]) {

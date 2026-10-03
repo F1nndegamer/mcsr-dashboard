@@ -27,15 +27,25 @@ export const DATA_STATUS = Object.freeze({
 export const RUNS_SHEET = "Runs";
 export const DASHBOARD_SHEET = "Dashboard";
 
-/** Manual fields are user-owned and must never be overwritten by sync. */
+/**
+ * Manual fields are user-owned and must never be overwritten by sync.
+ * (`deaths` is API-seeded first - see API_SEEDED_FIELDS - then becomes
+ * user-owned like the rest.)
+ */
 export const MANUAL_FIELDS = Object.freeze([
-  "bastionVariant",
-  "blazeRods",
   "completionType",
   "deaths",
   "deathMessages",
   "notes",
 ]);
+
+/**
+ * Fields seeded from the API on first import, then user-owned.
+ * Deaths is auto-counted from `projectelo.timeline.death` entries; when the
+ * sheet already has a value (user confirmed or corrected it), sync keeps the
+ * sheet value and never overwrites it with the API count.
+ */
+export const API_SEEDED_FIELDS = Object.freeze(["deaths"]);
 
 /**
  * Completion Type is manually entered as -1 / 0 / 1.

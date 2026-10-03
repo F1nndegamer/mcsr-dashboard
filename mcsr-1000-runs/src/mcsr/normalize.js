@@ -1,7 +1,7 @@
 import { classifyMatch } from "../core/classifier.js";
 import { deriveSplits } from "../core/splits.js";
 import { formatEndTowers, mapBastionType, mapSeedType } from "./seed.js";
-import { parseTimelines } from "./timeline.js";
+import { isDeathTimelineType, parseTimelines } from "./timeline.js";
 
 /** The player's authoritative completion record, if they finished. */
 export const extractCompletion = (match, playerUuid) => {
@@ -55,7 +55,7 @@ export const normalizeMatch = ({ match, playerUuid, utcOffsetMinutes = 0 } = {})
   }
 
   const { completionMs, completed } = extractCompletion(match, playerUuid);
-  const { events, raw, unknownTypes } = parseTimelines({
+  const { events, raw, unknownTypes, deathCount, deathTimes } = parseTimelines({
     timelines: match.timelines,
     playerUuid,
     completionMs,
@@ -103,6 +103,14 @@ export const normalizeMatch = ({ match, playerUuid, utcOffsetMinutes = 0 } = {})
     endTowerHeights: Array.isArray(seed?.endTowers) ? [...seed.endTowers] : [],
     finalTimeMs: splits.finalTimeMs,
     completed,
+
+    // Auto-seeded from `projectelo.timeline.death` (one per real death).
+    // `buildRecordSet` writes it only when the sheet cell is empty, so a
+    // user correction is never overwritten by a later sync. When the match
+    // has no timeline array at all we know nothing, so leave it undefined
+    // (Data Status will flag it) instead of seeding a false zero.
+    deaths: Array.isArray(match.timelines) ? deathCount : undefined,
+    deathTimes: Array.isArray(match.timelines) ? [...deathTimes] : [],
 
     ...extractElo(match, playerUuid),
 

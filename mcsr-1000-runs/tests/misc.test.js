@@ -37,6 +37,28 @@ describe("dashboard", () => {
     const progress = dashboard.grid.find((row) => row[0] === "Progress %")[1];
     assert.ok(progress.includes("IFERROR"));
   });
+
+  it("adds the X / 1000 hero, progress bar and schema-derived letters", () => {
+    const dashboard = dashboardBuild({ capacity: 2500 });
+    const row = (label) => dashboard.grid.find((entry) => entry[0] === label);
+
+    // Focal point: "X / 1000 Runs" text plus a REPT progress bar.
+    const progress = row("Progress")[1];
+    assert.ok(progress.includes("1000 Runs"), progress);
+    assert.ok(progress.includes("IFERROR"));
+    const bar = row("Progress Bar")[1];
+    assert.ok(bar.includes("REPT"), bar);
+    assert.ok(dashboard.progressRow > 0);
+    assert.equal(dashboard.progressBarRow, dashboard.progressRow + 1);
+
+    // Formulas follow the schema (Final Time = S, Data Status = Z).
+    assert.ok(row("PB")[1].includes("Runs!$S$2:$S"), "PB must reference Final Time (column S)");
+    assert.ok(
+      row("Rows still needing input")[1].includes("Runs!$Z$2:$Z"),
+      "must reference Data Status (column Z)",
+    );
+    assert.ok(row("Wins")[1].includes("Runs!$G$2:$G"));
+  });
 });
 
 describe("config", () => {

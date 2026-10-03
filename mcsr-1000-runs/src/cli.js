@@ -14,6 +14,7 @@ import { dashboardBuild } from "./sheets/dashboard.js";
 import { GoogleAuthError } from "./sheets/googleAuth.js";
 import { SheetsApiError } from "./sheets/googleSheets.js";
 import { RawCache, SyncStateStore } from "./sync/rawCache.js";
+import { RESET_WARNING, describeReset, performReset } from "./sync/reset.js";
 import { runSync } from "./sync/syncEngine.js";
 
 const USAGE = `mcsr-1000-runs
@@ -23,6 +24,9 @@ Commands:
   sync [--initial]           initial import of every match since START_DATE
        [--reprocess]         re-derive every row from the cached raw payloads
        [--dry-run]           plan the writes but do not touch the sheet
+  reset [--confirm]          erase tracked runs + local sync state (dry run
+                             without --confirm; keeps .env*, credentials,
+                             source code and the spreadsheet document)
   timeline-map               print the MCSR timeline identifier mapping
   probe [--count N]          dump N real matches + the normalised record (debug)
 
@@ -155,6 +159,22 @@ const main = async () => {
 
   if (command === "timeline-map") {
     printTimelineMap();
+    return 0;
+  }
+
+  if (command === "reset") {
+    const { text } = describeReset({ config });
+    logger.log(text);
+    if (!flags.has("--confirm")) {
+      logger.error(`\n${RESET_WARNING}`);
+      return 1;
+    }
+    const runtime = await buildRuntime({ config, logger, createSpreadsheet: false });
+    const result = await performReset({ config, backend: runtime.backend, logger });
+    logger.log(
+      `\nReset complete: ${result.clearedRanges.length} sheet ranges cleared, ` +
+        `${result.removed.length} local items removed.`,
+    );
     return 0;
   }
 

@@ -133,4 +133,34 @@ export class MemoryBackend {
     this.sheetRequests.push(...requests);
     return { replies: requests.map(() => ({})) };
   }
+
+  /**
+   * Clears VALUES inside an A1 range (formatting, filters and validation are
+   * untouched - there are none in memory, but the contract matches Google).
+   * Used by `npm run reset`.
+   */
+  async clearRange(a1) {
+    const { sheetTitle, startCol, startRow, endCol, endRow } = parseA1Range(a1);
+    const sheet = this.sheets.get(sheetTitle);
+    if (!sheet) return { clearedCells: 0 };
+    let clearedCells = 0;
+    for (let r = startRow; r <= endRow && r < sheet.rows.length; r += 1) {
+      const row = sheet.rows[r];
+      if (!row) continue;
+      for (let c = startCol; c <= endCol && c < row.length; c += 1) {
+        if (row[c] !== "" && row[c] !== undefined) {
+          row[c] = "";
+          clearedCells += 1;
+        }
+      }
+      // Trim trailing empties so reads behave exactly like a fresh sheet.
+      while (row.length > 0 && (row[row.length - 1] === "" || row[row.length - 1] === undefined)) {
+        row.pop();
+      }
+    }
+    while (sheet.rows.length > 1 && (sheet.rows[sheet.rows.length - 1]?.length ?? 0) === 0) {
+      sheet.rows.pop();
+    }
+    return { clearedCells };
+  }
 }

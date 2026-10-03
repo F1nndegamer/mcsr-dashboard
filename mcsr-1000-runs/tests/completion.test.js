@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { COMPLETION_FORMULA_TEMPLATE } from "../src/models/constants.js";
 import { completionLabel, completionTypeOptions } from "../src/core/completionType.js";
-import { completionFormulaForRow, parseCompletionType } from "../src/models/runRecord.js";
+import { completionFormulaForRow, parseCompletionType, COLUMN_INDEX, COLUMN_LETTERS } from "../src/models/runRecord.js";
 
 describe("completion type mapping (mirrors the Sheets formula)", () => {
   it("-1/0/1 map to their labels", () => {
@@ -37,6 +37,7 @@ describe("completion type mapping (mirrors the Sheets formula)", () => {
     assert.ok(formula.includes("One-cycle"));
     assert.ok(formula.includes("Invalid"));
     // The formula must point at the Completion Type cell of the same row.
-    assert.equal(formula, COMPLETION_FORMULA_TEMPLATE("S", 7));
+    const columnLetter = COLUMN_LETTERS[COLUMN_INDEX.completionType];
+    assert.equal(formula, COMPLETION_FORMULA_TEMPLATE(columnLetter, 7));
   });
 });

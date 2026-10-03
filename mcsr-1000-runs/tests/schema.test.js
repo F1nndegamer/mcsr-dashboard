@@ -2,11 +2,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MANUAL_FIELDS } from "../src/models/constants.js";
 import {
+  COLUMN_COUNT,
+  COLUMN_INDEX,
+  COLUMN_LETTERS,
+  RUNS_SECTIONS,
   deserializeRow,
   headerRow,
   msToDuration,
   serializeRecord,
 } from "../src/models/runRecord.js";
+import { conditionalFormatRules, runsSheetSetupRequests } from "../src/sheets/schema.js";
 import {
   buildRecordSet,
   cellEquals,
@@ -30,9 +35,7 @@ describe("Runs sheet schema", () => {
       "OW Split",
       "Nether Split",
       "Bastion Type",
-      "Bastion Variant",
       "Bastion Time",
-      "Blaze Rods",
       "End Split",
       "End Towers",
       "Completion Type",
@@ -46,6 +49,35 @@ describe("Runs sheet schema", () => {
       "Notes",
       "Data Status",
     ]);
+  });
+
+  it("drops Bastion Variant and Blaze Rods entirely", () => {
+    assert.equal(headerRow().includes("Bastion Variant"), false);
+    assert.equal(headerRow().includes("Blaze Rods"), false);
+    assert.equal(COLUMN_COUNT, 26);
+    assert.equal("bastionVariant" in COLUMN_INDEX, false);
+    assert.equal("blazeRods" in COLUMN_INDEX, false);
+    // Bastion Type / Bastion Time stay; Final Time and Data Status shifted.
+    assert.equal(COLUMN_LETTERS[COLUMN_INDEX.finalTimeMs], "S");
+    assert.equal(COLUMN_LETTERS[COLUMN_INDEX.dataStatus], "Z");
+    assert.equal(COLUMN_LETTERS[COLUMN_INDEX.completionType], "Q");
+  });
+
+  it("groups columns into the documented sections without gaps", () => {
+    assert.deepEqual(
+      RUNS_SECTIONS.map((section) => section.label),
+      ["IDENTIFICATION", "RESULT", "OVERWORLD", "NETHER", "END", "FINAL", "RANKED", "USER"],
+    );
+    let expected = 0;
+    for (const section of RUNS_SECTIONS) {
+      assert.equal(section.startIndex, expected);
+      assert.ok(section.endIndex >= section.startIndex);
+      expected = section.endIndex + 1;
+    }
+    assert.equal(expected, COLUMN_COUNT);
+    assert.equal(RUNS_SECTIONS[0].startIndex, COLUMN_INDEX.runNumber);
+    assert.equal(RUNS_SECTIONS.find((s) => s.key === "final").startIndex, COLUMN_INDEX.finalTimeMs);
+    assert.equal(RUNS_SECTIONS.find((s) => s.key === "user").startIndex, COLUMN_INDEX.notes);
   });
 
   it("stores durations as day fractions so Sheets can average and graph them", () => {
@@ -68,9 +100,7 @@ describe("Runs sheet schema", () => {
       owSplitMs: 60_000,
       netherSplitMs: 240_000,
       bastionType: "Treasure",
-      bastionVariant: "Double Bad Gap",
       bastionTimeMs: 80_000,
-      blazeRods: 7,
       endSplitMs: 100_000,
       endTowers: "79/88/91/103",
       completionType: 0,
@@ -87,11 +117,14 @@ describe("Runs sheet schema", () => {
     assert.equal(roundTripped.runNumber, 7);
     assert.equal(roundTripped.matchId, 4242);
     assert.equal(roundTripped.opponent, "Rival");
-    assert.equal(roundTripped.bastionVariant, "Double Bad Gap");
+    assert.equal(roundTripped.bastionType, "Treasure");
+    assert.equal(roundTripped.bastionTimeMs, 80_000);
     assert.equal(roundTripped.completionType, 0);
     assert.equal(roundTripped.deaths, 1);
     assert.equal(roundTripped.notes, "pb pace");
     assert.equal(roundTripped.eloAfter, 1512);
+    assert.equal(roundTripped.bastionVariant, undefined);
+    assert.equal(roundTripped.blazeRods, undefined);
   });
 
   it("headerMatches rejects a reordered or renamed header", () => {
@@ -114,10 +147,8 @@ describe("manual field preservation", () => {
     // A fresh API record never carries manual values.
   };
 
-  it("treats exactly the six documented fields as user-owned", () => {
+  it("treats exactly the four documented fields as user-owned", () => {
     assert.deepEqual([...MANUAL_FIELDS].sort(), [
-      "bastionVariant",
-      "blazeRods",
       "completionType",
       "deathMessages",
       "deaths",
@@ -128,8 +159,6 @@ describe("manual field preservation", () => {
   it("keeps user values when an existing match is re-synced", () => {
     const sheetRecord = {
       matchId: 1,
-      bastionVariant: "Triple Triple",
-      blazeRods: 6,
       completionType: 1,
       deaths: 2,
       deathMessages: "fell",
@@ -140,8 +169,6 @@ describe("manual field preservation", () => {
       normalizedById: new Map([[1, apiRecord]]),
     });
     assert.equal(merged.length, 1);
-    assert.equal(merged[0].bastionVariant, "Triple Triple");
-    assert.equal(merged[0].blazeRods, 6);
     assert.equal(merged[0].completionType, 1);
     assert.equal(merged[0].deaths, 2);
     assert.equal(merged[0].deathMessages, "fell");
@@ -177,5 +204,68 @@ describe("planRunsUpdates", () => {
     assert.equal(cellEquals(0.0069, 0.0079, "duration"), false);
     assert.equal(cellEquals("WIN", "WIN", "text"), true);
     assert.equal(cellEquals("WIN", "LOSS", "text"), false);
+  });
+});
+
+describe("Runs sheet presentation", () => {
+  const requests = runsSheetSetupRequests({ sheetId: 7, capacity: 2500 });
+
+  it("freezes the header row and the two id columns", () => {
+    const frozen = requests.find(
+      (request) => request.updateSheetProperties?.properties?.gridProperties?.frozenRowCount,
+    );
+    assert.ok(frozen, "no freeze request emitted");
+    assert.equal(frozen.updateSheetProperties.properties.gridProperties.frozenColumnCount, 2);
+  });
+
+  it("styles one header block per section and draws separator borders", () => {
+    const headerBlocks = requests.filter(
+      (request) =>
+        request.repeatCell &&
+        request.repeatCell.range.startRowIndex === 0 &&
+        request.repeatCell.range.endRowIndex === 1,
+    );
+    assert.equal(headerBlocks.length, RUNS_SECTIONS.length);
+    const separators = requests.filter((request) => request.updateBorders?.left);
+    // Every section but the first gets a left separator - no spacer columns.
+    assert.equal(separators.length, RUNS_SECTIONS.length - 1);
+    assert.ok(requests.some((request) => request.updateBorders?.bottom));
+  });
+
+  it("sets a pixel width for every column", () => {
+    const widths = requests.filter((request) => request.updateDimensionProperties);
+    assert.equal(widths.length, COLUMN_COUNT);
+    for (const request of widths) {
+      assert.ok(request.updateDimensionProperties.properties.pixelSize >= 50);
+    }
+  });
+
+  it("clears old conditional rules before re-adding them (idempotent init)", () => {
+    const clearIndex = requests.findIndex((request) => request.clearConditionalFormatRules);
+    const firstAdd = requests.findIndex((request) => request.addConditionalFormatRule);
+    assert.ok(clearIndex !== -1 && firstAdd !== -1 && clearIndex < firstAdd);
+    const addIndexes = requests
+      .filter((request) => request.addConditionalFormatRule)
+      .map((request) => request.addConditionalFormatRule.index);
+    assert.deepEqual(addIndexes, addIndexes.map((_, index) => index));
+  });
+
+  it("covers every semantic colour rule, banding last", () => {
+    const rules = conditionalFormatRules({ sheetId: 7, capacity: 2500 });
+    const texts = rules
+      .map((rule) => rule.booleanRule?.condition?.values?.[0]?.userEnteredValue)
+      .filter((value) => typeof value === "string");
+    for (const value of ["WIN", "LOSS", "DRAW", "FORFEIT", "COMPLETE", "NEEDS INPUT", "One-shot", "Invalid"]) {
+      assert.ok(texts.includes(value), `missing rule for ${value}`);
+    }
+    // Final Time uses a gradient (not a rainbow): one gradient rule only.
+    const gradients = rules.filter((rule) => rule.gradientRule);
+    assert.equal(gradients.length, 1);
+    // The alternating-row tint must be the lowest-priority rule so semantic
+    // colours always win.
+    const last = rules[rules.length - 1];
+    assert.equal(last.booleanRule.condition.values[0].userEnteredValue, "=ISODD(ROW())");
+    // Deaths 1+ is flagged subtly via a custom formula.
+    assert.ok(texts.some((value) => String(value).includes('>0')));
   });
 });

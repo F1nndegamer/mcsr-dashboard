@@ -182,4 +182,36 @@ export class GoogleSheetsBackend {
       body: { requests },
     });
   }
+
+  /**
+   * Clears VALUES inside an A1 range via `updateCells` + `fields:
+   * userEnteredValue`. Deliberately NOT `values.clear` / NOT a sheet deletion:
+   * formatting, filters, frozen panes and the spreadsheet itself survive, so
+   * `npm run reset` can never destroy layout or the document.
+   */
+  async clearRange(a1) {
+    const { sheetTitle, startCol, startRow, endCol, endRow } = parseA1Range(a1);
+    const metadata = await this.getSheetMetadata();
+    const sheet = metadata.find((entry) => entry.title === sheetTitle);
+    if (!sheet) {
+      throw new SheetsApiError(`Sheet "${sheetTitle}" not found; nothing was cleared.`);
+    }
+    await this.batchUpdateSpreadsheet({
+      requests: [
+        {
+          updateCells: {
+            range: {
+              sheetId: sheet.sheetId,
+              startRowIndex: startRow,
+              endRowIndex: endRow + 1,
+              startColumnIndex: startCol,
+              endColumnIndex: endCol + 1,
+            },
+            fields: "userEnteredValue",
+          },
+        },
+      ],
+    });
+    return { clearedCells: (endRow - startRow + 1) * (endCol - startCol + 1) };
+  }
 }

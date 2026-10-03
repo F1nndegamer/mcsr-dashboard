@@ -71,6 +71,8 @@ npm run init-sheet   # creates Runs + Dashboard, or repairs SPREADSHEET_ID
 npm run sync:initial # first import: every Ranked match since START_DATE
 npm run sync         # later: only new / recently-reconciled matches
 npm run sync:dry     # plan only: prints what would change, writes nothing
+npm run reset        # dry run: prints exactly what a reset would delete
+npm run reset -- --confirm # clear tracked runs + local sync state (below)
 npm run probe        # dump recent real matches + normalised records (debug)
 npm run timeline-map # print the verified timeline identifier mapping
 ```
@@ -78,12 +80,51 @@ npm run timeline-map # print the verified timeline identifier mapping
 Behaviour: `Match ID` is the dedup key (syncing twice never duplicates rows);
 `Match #` is chronological over every imported match while `Run #` only
 advances on genuine `WIN`s and is re-derived every sync; API-owned fields are
-refreshed but the six manual fields (`Bastion Variant`, `Blaze Rods`,
-`Completion Type`, `Deaths`, `Death Messages`, `Notes`) are **never**
-overwritten; the `Completion` column is a generated formula
+refreshed but the four manual fields (`Completion Type`, `Deaths`,
+`Death Messages`, `Notes`) are **never** overwritten; the `Completion`
+column is a generated formula
 (`-1 -> One-shot`, `0 -> Zero-cycle`, `1 -> One-cycle`, blank -> blank, else
 `Invalid`); raw payloads land in `data/cache/matches/<id>.json` so splits can
 be re-derived later with `npm run sync -- --reprocess`.
+
+## Sheet appearance
+
+`npm run init-sheet` applies the full presentation layer (idempotent, safe to
+re-run; `sync` never touches formatting):
+
+- The Runs columns are grouped into sections - `IDENTIFICATION`, `RESULT`,
+  `OVERWORLD`, `NETHER`, `END`, `FINAL`, `RANKED`, `USER` - shown with
+  alternating dark header shading and thin separator borders. There are no
+  blank spacer columns.
+- Header row and the `Run #`/`Match #` columns stay frozen; every column has a
+  reading-width pixel size; data cells are centre- or left-aligned by type and
+  durations render as `[mm]:ss.000`.
+- Conditional formatting (green/red/amber/purple/blue on a soft palette, in
+  strict priority order): `Result` colours, `Counts Toward 1000`, a `Run #`
+  accent, a subtle green-to-warm color scale on `Final Time` (fastest wins,
+  no rainbow), `Deaths` 1+, the `Completion` labels, Elo gains/losses and
+  `Data Status` - with a nearly invisible alternating-row tint registered last
+  so semantic colours always win.
+- The Dashboard leads with a `X / 1000 Runs` hero plus a progress bar, then
+  W/L/D/Forfeit counts (colour-accented), completion % and the timing stats.
+
+## Reset
+
+```bash
+npm run reset                 # dry run: lists what would be deleted
+npm run reset -- --confirm    # actually do it
+```
+
+`reset` restores a fresh-install state. It clears only the known tracker
+ranges (`Runs!A2:AB<capacity>` data rows and the Dashboard grid - header,
+formatting, filters and frozen panes are re-applied afterwards) and deletes
+only allow-listed local artefacts: `data/cache/`, `data/logs/`,
+`data/sync-state.json`, `data/normalized-records.json` and the file-backend
+mirror under `out/sheet/` (`Runs.json`, `Dashboard.json`,
+`spreadsheet-requests.json`, `Runs.csv`). It **never** touches `.env`,
+`.env.local`, Google/OAuth credentials, source code, or deletes the
+spreadsheet itself. Without `--confirm` nothing is changed - the command only
+prints the plan and exits non-zero.
 
 ## Discovered MCSR timeline identifiers
 
@@ -127,6 +168,9 @@ npm test
 Covers: WIN/LOSS/DRAW/FORFEIT classification incl. the opponent-forfeit edge
 case; `WIN/LOSS/FORFEIT/DRAW/WIN/WIN -> Run # 1,blank,blank,blank,2,3`;
 duplicate-safe double sync; manual-field preservation; completion mapping;
-timeline identifiers and split math; data-status rules; dashboard formulas;
-retry/backoff and auth-error handling.
+timeline identifiers and split math; data-status rules; dashboard formulas
+(including the schema-derived column letters); the Runs-sheet presentation
+requests (sections, borders, freeze, conditional formatting); reset dry-run
+and confirm behaviour incl. `.env.local` preservation; retry/backoff and
+auth-error handling.
 

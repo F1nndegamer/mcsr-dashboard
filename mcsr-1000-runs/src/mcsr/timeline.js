@@ -58,9 +58,11 @@ export const KNOWN_NON_MILESTONE_IDS = Object.freeze([
   "story.form_obsidian",
   "story.obtain_armor",
   "story.mine_diamond",
+  "adventure.shoot_arrow",
   "adventure.root",
   "adventure.kill_a_mob",
   "adventure.ol_betsy",
+  "adventure.sleep_in_bed",
   "husbandry.root",
   "nether.root",
   "nether.loot_bastion",
@@ -68,6 +70,7 @@ export const KNOWN_NON_MILESTONE_IDS = Object.freeze([
   "nether.obtain_blaze_rod",
   "nether.obtain_crying_obsidian",
   "nether.distract_piglin",
+  "projectelo.timeline.death_spawnpoint",
   "end.root",
 ]);
 
@@ -81,8 +84,21 @@ const ID_TO_EVENT = (() => {
 
 export const eventForTimelineType = (type) => ID_TO_EVENT.get(type) ?? null;
 
+/**
+ * Timeline identifiers that represent a real player death.
+ * `projectelo.timeline.death` fires once per death.
+ * `projectelo.timeline.death_spawnpoint` fires when a spawn point is set
+ * (bed / respawn anchor) - it is explicitly NOT a death and is listed in
+ * KNOWN_NON_MILESTONE_IDS above.
+ */
+export const DEATH_TIMELINE_IDS = Object.freeze(["projectelo.timeline.death"]);
+
+const DEATH_ID_SET = new Set(DEATH_TIMELINE_IDS);
+
+export const isDeathTimelineType = (type) => DEATH_ID_SET.has(type);
+
 export const isKnownTimelineType = (type) =>
-  ID_TO_EVENT.has(type) || KNOWN_NON_MILESTONE_IDS.includes(type);
+  ID_TO_EVENT.has(type) || DEATH_ID_SET.has(type) || KNOWN_NON_MILESTONE_IDS.includes(type);
 
 /** Milliseconds -> human readable `m:ss.mmm` / `h:mm:ss.mmm`. */
 export const formatDuration = (ms) => {
@@ -108,16 +124,23 @@ export const formatDuration = (ms) => {
  * @param {RawTimelineEntry[]} args.timelines
  * @param {string} args.playerUuid
  * @param {number} [args.completionMs] authoritative time from `completions[]`
- * @returns {{events: Record<string, number>, raw: RawTimelineEntry[], unknownTypes: string[]}}
+ * @returns {{events: Record<string, number>, raw: RawTimelineEntry[],
+ *            unknownTypes: string[], deathCount: number, deathTimes: number[]}}
  */
 export const parseTimelines = ({ timelines = [], playerUuid, completionMs } = {}) => {
   const events = {};
   const unknownTypes = [];
   const raw = [];
+  const deathTimes = [];
 
   for (const entry of timelines) {
     if (!entry || entry.uuid !== playerUuid) continue;
     raw.push(entry);
+    // Deaths are counted, not mapped to a milestone event.
+    if (isDeathTimelineType(entry.type)) {
+      if (typeof entry.time === "number") deathTimes.push(entry.time);
+      continue;
+    }
     const event = eventForTimelineType(entry.type);
     if (!event) {
       if (!isKnownTimelineType(entry.type)) unknownTypes.push(entry.type);
@@ -128,6 +151,7 @@ export const parseTimelines = ({ timelines = [], playerUuid, completionMs } = {}
   }
 
   raw.sort((a, b) => a.time - b.time);
+  deathTimes.sort((a, b) => a - b);
 
   // The completion record is authoritative for "Complete": for a real win it
   // equals result.time, and it exists even when dragon_death is absent.
@@ -135,5 +159,5 @@ export const parseTimelines = ({ timelines = [], playerUuid, completionMs } = {}
     events.COMPLETE = completionMs;
   }
 
-  return { events, raw, unknownTypes: [...new Set(unknownTypes)] };
+  return { events, raw, unknownTypes: [...new Set(unknownTypes)], deathCount: deathTimes.length, deathTimes };
 };

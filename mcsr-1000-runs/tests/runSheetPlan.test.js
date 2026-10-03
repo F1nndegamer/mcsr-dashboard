@@ -91,12 +91,10 @@ describe("runSync end to end (memory backend, fake MCSR API)", () => {
 
     await backend.batchUpdateValues({
       updates: [
-        { range: "Runs!N2", values: [["Triple Triple"]] },
-        { range: "Runs!P2", values: [[6]] },
-        { range: "Runs!S2", values: [[0]] },
-        { range: "Runs!V2", values: [[1]] },
-        { range: "Runs!W2", values: [["burnt"]] },
-        { range: "Runs!AA2", values: [["my note"]] },
+        { range: "Runs!Q2", values: [[0]] },   // Completion Type
+        { range: "Runs!T2", values: [[1]] },   // Deaths
+        { range: "Runs!U2", values: [["burnt"]] }, // Death Messages
+        { range: "Runs!Y2", values: [["my note"]] }, // Notes
       ],
     });
 
@@ -108,12 +106,13 @@ describe("runSync end to end (memory backend, fake MCSR API)", () => {
     assert.equal(records.length, 6);
     assert.equal(dataRows.length, 6);
     const first = records.find((r) => r.matchId === 101);
-    assert.equal(first.bastionVariant, "Triple Triple");
-    assert.equal(first.blazeRods, 6);
     assert.equal(first.completionType, 0);
     assert.equal(first.deaths, 1);
     assert.equal(first.deathMessages, "burnt");
     assert.equal(first.notes, "my note");
+    // Removed fields stay absent even when a stale sheet had them.
+    assert.equal(first.bastionVariant, undefined);
+    assert.equal(first.blazeRods, undefined);
   });
 
   it("dry runs plan writes without touching the sheet", async () => {

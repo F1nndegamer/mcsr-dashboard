@@ -1,4 +1,4 @@
-import { MANUAL_FIELDS, RUNS_SHEET } from "../models/constants.js";
+import { API_SEEDED_FIELDS, MANUAL_FIELDS, RUNS_SHEET } from "../models/constants.js";
 import {
   COLUMN_COUNT,
   LAST_COLUMN_LETTER,
@@ -50,6 +50,9 @@ export const headerMatches = (header = []) => {
  * Rules:
  *   - API-owned fields come from the API payload.
  *   - MANUAL_FIELDS always come from the sheet (never from the API).
+ *   - API_SEEDED_FIELDS (Deaths) are filled from the API when the sheet cell
+ *     is empty, then behave like manual fields: once the sheet has a value
+ *     (auto-seeded or user-typed), sync keeps it and never overwrites it.
  *   - Matches that are not re-fetched keep the values already in the sheet.
  *
  * @param {Object} args
@@ -68,6 +71,16 @@ export const buildRecordSet = ({ sheetRecords = [], normalizedById = new Map() }
     const existing = byId.get(matchId);
     const merged = { ...(existing ?? {}), ...apiRecord };
     for (const key of MANUAL_FIELDS) {
+      if (API_SEEDED_FIELDS.includes(key)) {
+        // Seeded once: a value already in the sheet (auto-seeded or typed)
+        // always wins; otherwise take the API seed when it has one.
+        if (existing && existing[key] !== undefined) {
+          merged[key] = existing[key];
+        } else if (apiRecord[key] === undefined) {
+          delete merged[key];
+        }
+        continue;
+      }
       if (existing && existing[key] !== undefined) {
         merged[key] = existing[key];
       } else {

@@ -8,10 +8,8 @@ import { DATA_STATUS, RESULT } from "../models/constants.js";
  * COMPLETE so they never look like they are missing information.
  *
  * Required manual fields for a WIN:
- *   Bastion Variant, Completion Type, Deaths
+ *   Completion Type, Deaths
  *   Death Messages - only required when Deaths > 0 (a deathless run has none)
- *
- * Blaze Rods is explicitly optional and never affects the status.
  */
 
 const isMissingText = (value) =>
@@ -27,7 +25,6 @@ export const evaluateDataStatus = (record = {}) => {
   }
 
   const missing = [];
-  if (isMissingText(record.bastionVariant)) missing.push("Bastion Variant");
   if (record.completionType === undefined || record.completionType === null) {
     missing.push("Completion Type");
   }

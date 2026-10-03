@@ -30,9 +30,9 @@ describe("sheet setup + duplicate-safe reads", () => {
   it("createBackend + ensureSheets never clobber an existing header", async () => {
     const { backend } = await createBackend({ config: config() });
     await ensureSheets({ backend, config: config() });
-    const header = await backend.readValues("Runs!A1:AB1");
+    const header = await backend.readValues("Runs!A1:Z1");
     assert.equal(header[0][0], "Run #");
-    assert.equal(header[0][27], "Data Status");
+    assert.equal(header[0][25], "Data Status");
   });
 
   it("readRunsSheet skips blank rows and rows without a Match ID", async () => {
@@ -41,7 +41,7 @@ describe("sheet setup + duplicate-safe reads", () => {
     await backend.batchUpdateValues({
       updates: [
         // A row with no Match ID must not become a record.
-        { range: "Runs!A2:AB2", values: [["", "", "", "", "", "Nobody", "LOSS"]] },
+        { range: "Runs!A2:Z2", values: [["", "", "", "", "", "Nobody", "LOSS"]] },
       ],
     });
     const { records } = await readRunsSheet({ backend });
