@@ -95,8 +95,8 @@ export const dashboardFormatRequests = ({ sheetId, dashboard }) => {
         sheetId,
         progressBarRow,
         1,
-        { textFormat: { bold: true, foregroundColor: GREEN }, fontFamily: "monospace" },
-        `${TEXT_FIELDS},userEnteredFormat.fontFamily`,
+        { textFormat: { bold: true, foregroundColor: GREEN, fontFamily: "monospace" } },
+        `${TEXT_FIELDS},userEnteredFormat.textFormat.fontFamily`,
       ),
     );
   }

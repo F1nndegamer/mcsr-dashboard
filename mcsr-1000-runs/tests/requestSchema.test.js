@@ -32,6 +32,52 @@ describe("batchUpdate request validation", () => {
     validateBatchUpdateRequests(dash);
   });
 
+  it("emits fontFamily only on textFormat, never directly on userEnteredFormat", () => {
+    // The progress-bar cell must use the valid CellFormat -> TextFormat shape:
+    // userEnteredFormat: { textFormat: { fontFamily: "..." } }.
+    const dash = dashboardFormatRequests({
+      sheetId: 8,
+      dashboard: dashboardBuild({ capacity: 2500 }),
+    });
+    const serialised = JSON.stringify(dash);
+    assert.ok(serialised.includes("monospace"), "progress-bar monospace styling must survive");
+    for (const request of dash) {
+      for (const key of ["repeatCell", "updateCells", "appendCells"]) {
+        const payload = request[key];
+        if (!payload) continue;
+        const formats = [];
+        if (payload.cell?.userEnteredFormat) formats.push(payload.cell.userEnteredFormat);
+        for (const row of payload.rows ?? []) {
+          for (const cell of row.values ?? []) {
+            if (cell?.userEnteredFormat) formats.push(cell.userEnteredFormat);
+          }
+        }
+        for (const format of formats) {
+          assert.equal(
+            "fontFamily" in format,
+            false,
+            `fontFamily must live on textFormat, found directly on userEnteredFormat in ${key}`,
+          );
+        }
+      }
+      if (request.addConditionalFormatRule?.rule?.booleanRule?.format) {
+        assert.equal(
+          "fontFamily" in request.addConditionalFormatRule.rule.booleanRule.format,
+          false,
+          "fontFamily must live on textFormat, found directly on booleanRule.format",
+        );
+      }
+    }
+    const mono = dash.find((request) =>
+      JSON.stringify(request).includes("monospace"),
+    );
+    assert.ok(mono, "expected a monospace progress-bar request");
+    assert.ok(
+      JSON.stringify(mono).includes("textFormat"),
+      "monospace styling must be nested under textFormat",
+    );
+  });
+
   it("never emits a request type outside the official API schema", () => {
     const all = [
       ...runsSheetSetupRequests({ sheetId: 7, capacity: 2500, existingConditionalFormatRuleCount: 5 }),
@@ -127,6 +173,45 @@ describe("batchUpdate request validation", () => {
       () => validateBatchUpdateRequests([{ addSheet: { properties: { title: "x" } }, deleteSheet: { sheetId: 1 } }]),
       /exactly one request type/,
     );
+  });
+
+  it("rejects fontFamily placed directly on userEnteredFormat (live API: Unknown name \"fontFamily\")", () => {
+    // Regression for the live rejection:
+    //   Unknown name "fontFamily" at 'requests[6].repeat_cell.cell.user_entered_format'.
+    // CellFormat has no fontFamily field - the font lives on TextFormat, i.e.
+    // userEnteredFormat: { textFormat: { fontFamily: "..." } }.
+    assert.throws(
+      () =>
+        validateBatchUpdateRequests([
+          {
+            repeatCell: {
+              range: { sheetId: 8, startRowIndex: 5, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: { bold: true },
+                  fontFamily: "monospace",
+                },
+              },
+              fields: "userEnteredFormat.textFormat.bold,userEnteredFormat.fontFamily",
+            },
+          },
+        ]),
+      /fontFamily must live on textFormat/,
+    );
+    // The corrected shape passes.
+    validateBatchUpdateRequests([
+      {
+        repeatCell: {
+          range: { sheetId: 8, startRowIndex: 5, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 },
+          cell: {
+            userEnteredFormat: {
+              textFormat: { bold: true, fontFamily: "monospace" },
+            },
+          },
+          fields: "userEnteredFormat.textFormat.bold,userEnteredFormat.textFormat.fontFamily",
+        },
+      },
+    ]);
   });
 
   it("rejects invalid conditional-format delete indexes", () => {

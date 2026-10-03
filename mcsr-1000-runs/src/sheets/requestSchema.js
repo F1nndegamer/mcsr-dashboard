@@ -114,6 +114,101 @@ const isPlainObject = (value) =>
 
 const isNonNegativeInt = (value) => Number.isInteger(value) && value >= 0;
 
+/**
+ * TextFormat-only fields that are sometimes mistakenly placed directly on
+ * `CellFormat` (`userEnteredFormat`). Per the Sheets v4 schema, `CellFormat`
+ * has NO `fontFamily` (or `bold`, `foregroundColor`, ...) of its own — those
+ * live on `userEnteredFormat.textFormat`. The live API rejects the misplaced
+ * shape with e.g.:
+ *   Unknown name "fontFamily" at
+ *   'requests[6].repeat_cell.cell.user_entered_format': Cannot find field.
+ */
+const TEXT_FORMAT_ONLY_FIELDS = [
+  "fontFamily",
+  "bold",
+  "italic",
+  "foregroundColor",
+  "foregroundColorStyle",
+  "fontSize",
+  "strikethrough",
+  "underline",
+];
+
+const validateCellUserEnteredFormat = (format, label, index, request, fields) => {
+  if (format === undefined || format === null) return;
+  if (!isPlainObject(format)) {
+    fail(index, `${label} must be an object.`, request);
+  }
+  for (const key of TEXT_FORMAT_ONLY_FIELDS) {
+    if (key in format) {
+      fail(
+        index,
+        `${label}.${key} is invalid: ${key} is not a field of CellFormat; ` +
+          `${key} must live on textFormat ` +
+          `(use ${label}.textFormat.${key} and mask userEnteredFormat.textFormat.${key}).`,
+        request,
+      );
+    }
+  }
+  if (typeof fields === "string" && fields.includes("userEnteredFormat.fontFamily")) {
+    fail(
+      index,
+      `${label} fields mask "userEnteredFormat.fontFamily" is invalid: ` +
+        "fontFamily must live on textFormat " +
+        '(use mask "userEnteredFormat.textFormat.fontFamily").',
+      request,
+    );
+  }
+};
+
+/** Validates the `cell` + `fields` of a RepeatCellRequest payload. */
+const validateRepeatCellFormat = (payload, index, request) => {
+  validateCellUserEnteredFormat(
+    payload.cell?.userEnteredFormat,
+    `${Object.keys(request)[0]}.cell.userEnteredFormat`,
+    index,
+    request,
+    payload.fields,
+  );
+};
+
+/**
+ * Validates every `rows[].values[].userEnteredFormat` of UpdateCells /
+ * AppendCells payloads (same CellFormat schema as RepeatCell).
+ */
+const validateRowsFormat = (payload, index, request) => {
+  const type = Object.keys(request)[0];
+  if (payload.rows === undefined) return;
+  if (!Array.isArray(payload.rows)) {
+    fail(index, `${type}.rows must be an array.`, request);
+  }
+  payload.rows.forEach((row, rowIndex) => {
+    const values = row?.values;
+    if (values === undefined) return;
+    if (!Array.isArray(values)) {
+      fail(index, `${type}.rows[${rowIndex}].values must be an array.`, request);
+    }
+    values.forEach((cellData, cellIndex) => {
+      validateCellUserEnteredFormat(
+        cellData?.userEnteredFormat,
+        `${type}.rows[${rowIndex}].values[${cellIndex}].userEnteredFormat`,
+        index,
+        request,
+        payload.fields,
+      );
+    });
+  });
+  if (typeof payload.fields === "string" && payload.fields.includes("userEnteredFormat.fontFamily")) {
+    fail(
+      index,
+      `${type} fields mask "userEnteredFormat.fontFamily" is invalid: ` +
+        "fontFamily must live on textFormat " +
+        '(use mask "userEnteredFormat.textFormat.fontFamily").',
+      request,
+    );
+  }
+};
+
 const fail = (index, message, request) => {
   let detail = "";
   try {
@@ -213,6 +308,15 @@ const validateConditionalRule = (rule, label, index, request) => {
     if (!isPlainObject(condition) || typeof condition.type !== "string") {
       fail(index, `${label}.booleanRule.condition.type must be a string.`, request);
     }
+    // Conditional-format `booleanRule.format` is a CellFormat too: reject
+    // TextFormat-only fields (e.g. fontFamily) placed directly on it.
+    validateCellUserEnteredFormat(
+      rule.booleanRule?.format,
+      `${label}.booleanRule.format`,
+      index,
+      request,
+      undefined,
+    );
   }
 };
 
@@ -278,6 +382,17 @@ export const validateBatchUpdateRequests = (requests) => {
         if (!isNonNegativeInt(payload.index)) {
           fail(index, "deleteConditionalFormatRule.index must be a non-negative integer.", request);
         }
+        break;
+      }
+      case "repeatCell": {
+        if (payload.cell !== undefined) {
+          validateRepeatCellFormat(payload, index, request);
+        }
+        break;
+      }
+      case "updateCells":
+      case "appendCells": {
+        validateRowsFormat(payload, index, request);
         break;
       }
       default:
