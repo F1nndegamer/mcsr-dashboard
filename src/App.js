@@ -9,7 +9,10 @@ import AverageTimelinesCard from "./components/AverageTimelinesCard";
 import ConnectionsCard from "./components/ConnectionsCard";
 import RecentMatchesCard from "./components/RecentMatchesCard";
 import ActivityCard from "./components/ActivityCard";
-import DailyProgressCard from "./components/DailyProgressCard";
+import StreaksCard from "./components/StreaksCard";
+import RhythmCard from "./components/RhythmCard";
+import VolatilityCard from "./components/VolatilityCard";
+import PaceCard from "./components/PaceCard";
 import NetherEnterBySeedCard from "./components/NetherEnterBySeedCard";
 import { buildSelectedTimelineRows } from "./components/timelineUtils";
 import {
@@ -415,9 +418,16 @@ const App = () => {
           played={played}
           season={seasonNumber}
         />
-        <DailyProgressCard rankedMatches={allTimeRankedMatches} />
         <ActivityCard timestamp={user.timestamp} />
         <EloInsightsCard data={allTimeEloProgression} />
+        <StreaksCard
+          rankedMatches={allTimeRankedMatches}
+          userUuid={user.uuid}
+        />
+        <VolatilityCard
+          rankedMatches={allTimeRankedMatches}
+          userUuid={user.uuid}
+        />
       </div>
 
       <div className="lg:col-span-6 space-y-6">
@@ -461,6 +471,8 @@ const App = () => {
       </div>
 
       <div className="lg:col-span-3 space-y-6">
+        <RhythmCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
+        <PaceCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
         <ConnectionsCard connections={user.connections} />
         {/* <WeeklyRaceCard weeklyRaces={user.weeklyRaces} /> */}
         <RecentMatchesCard

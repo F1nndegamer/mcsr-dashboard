@@ -9,6 +9,9 @@ module.exports = {
         'minecraft-gold': '#ffaa00',
         'minecraft-green': '#55ff55',
       },
+      gridTemplateColumns: {
+        24: 'repeat(24, minmax(0, 1fr))',
+      },
     },
   },
   plugins: [],
