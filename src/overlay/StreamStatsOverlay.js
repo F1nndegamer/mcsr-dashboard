@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE, RANKED_MATCH_TYPE, fetchAllRankedMatches } from "../api/mcsrApi";
 import {
   clearStoredTotalRuns,
+  fetchSpreadsheetTotalRuns,
   loadStoredTotalRuns,
   resolveOverlayConfig,
   saveStoredTotalRuns,
@@ -114,8 +115,22 @@ const StreamStatsOverlay = () => {
   const [hasFullHistory, setHasFullHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
-  // URL ?total= is the base; a localStorage override (hotkey/button edits)
-  // wins until it is reset or the base changes.
+  // The runs counter is auto-set from the tracker spreadsheet (via the
+  // /api/total-runs serverless function). ?total= pins it manually instead,
+  // and a localStorage override (hotkey/button edits) then wins until it is
+  // reset or the base changes.
+  const [sheetTotal, setSheetTotal] = useState(null);
+  const [sheetGoal, setSheetGoal] = useState(null);
+  const [isCounterOffline, setIsCounterOffline] = useState(false);
+
+  const baseTotal = config.hasManualTotal
+    ? config.totalSpeedruns
+    : sheetTotal ?? config.totalSpeedruns;
+
+  const goalRuns = config.hasManualGoal
+    ? config.goalRuns
+    : sheetGoal ?? config.goalRuns;
+
   const [totalRuns, setTotalRuns] = useState(
     () => loadStoredTotalRuns(config.totalSpeedruns) ?? config.totalSpeedruns,
   );
@@ -130,21 +145,27 @@ const StreamStatsOverlay = () => {
   }, []);
 
   const resetTotalRuns = useCallback(() => {
-    setTotalRuns(config.totalSpeedruns);
-  }, [config.totalSpeedruns]);
+    setTotalRuns(baseTotal);
+  }, [baseTotal]);
+
+  // A new base from the spreadsheet adopts its value and discards hotkey edits
+  // that were made against the previous base.
+  useEffect(() => {
+    setTotalRuns(loadStoredTotalRuns(baseTotal) ?? baseTotal);
+  }, [baseTotal]);
 
   // Persist hotkey/button edits so they survive OBS source reloads.
   // Equal-to-base means "no local edit" -> drop the stored override.
   useEffect(() => {
-    if (totalRuns === config.totalSpeedruns) {
+    if (totalRuns === baseTotal) {
       clearStoredTotalRuns();
     } else {
-      saveStoredTotalRuns(totalRuns, config.totalSpeedruns);
+      saveStoredTotalRuns(totalRuns, baseTotal);
     }
-  }, [totalRuns, config.totalSpeedruns]);
+  }, [totalRuns, baseTotal]);
 
   // Hotkeys (use OBS's "Interact" window): ↑/+ add, ↓/- subtract,
-  // Backspace/Delete reset to the URL ?total= base.
+  // Backspace/Delete reset to the spreadsheet value.
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -168,6 +189,43 @@ const StreamStatsOverlay = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [changeTotalRuns, resetTotalRuns]);
+
+  // Auto-set the counter from the tracker spreadsheet. Skipped when the URL
+  // pins ?total= manually. Failures keep the last known-good number so the
+  // overlay never blanks mid-stream.
+  useEffect(() => {
+    if (config.hasManualTotal) return undefined;
+
+    let cancelled = false;
+
+    const pollCounter = async () => {
+      try {
+        const result = await fetchSpreadsheetTotalRuns(config.totalRunsEndpoint);
+        if (cancelled) return;
+        setSheetTotal(result.totalRuns);
+        if (result.goalRuns != null) setSheetGoal(result.goalRuns);
+        setIsCounterOffline(false);
+      } catch (counterError) {
+        if (cancelled) return;
+        console.warn(
+          "[mcsr-overlay] Could not load the run counter, keeping last known value.",
+          counterError,
+        );
+        setIsCounterOffline(true);
+      }
+    };
+
+    pollCounter();
+    const counterIntervalId = window.setInterval(
+      pollCounter,
+      config.pollIntervalMs,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(counterIntervalId);
+    };
+  }, [config.hasManualTotal, config.totalRunsEndpoint, config.pollIntervalMs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,16 +322,14 @@ const StreamStatsOverlay = () => {
   );
 
   const progressPercent =
-    config.goalRuns > 0
-      ? Math.min(100, (totalRuns / config.goalRuns) * 100)
-      : 0;
+    goalRuns > 0 ? Math.min(100, (totalRuns / goalRuns) * 100) : 0;
 
-  const statusClass = isOffline
+  const statusClass = isOffline || isCounterOffline
     ? "mcsr-overlay__status--offline"
     : isSyncing
       ? "mcsr-overlay__status--syncing"
       : "mcsr-overlay__status--live";
-  const statusLabel = isOffline
+  const statusLabel = isOffline || isCounterOffline
     ? "RECONNECTING..."
     : isSyncing
       ? "SYNCING..."
@@ -293,7 +349,7 @@ const StreamStatsOverlay = () => {
           <h1 className="mcsr-overlay__title">{config.title}</h1>
           <div className="mcsr-overlay__header-right">
             <span className="mcsr-overlay__progress-count">
-              {totalRuns} / {config.goalRuns}
+              {totalRuns} / {goalRuns}
               <span className="mcsr-overlay__progress-percent">
                 {" "}
                 ({progressPercent.toFixed(1)}%)
@@ -323,7 +379,7 @@ const StreamStatsOverlay = () => {
                   type="button"
                   className="mcsr-overlay__control"
                   aria-label="Reset runs completed"
-                  title="Reset to ?total= base (Backspace)"
+                  title="Reset to the spreadsheet value (Backspace)"
                   onClick={resetTotalRuns}
                 >
                   ⟳
@@ -341,7 +397,7 @@ const StreamStatsOverlay = () => {
           role="progressbar"
           aria-valuenow={totalRuns}
           aria-valuemin={0}
-          aria-valuemax={config.goalRuns}
+          aria-valuemax={goalRuns}
           aria-label="Progress towards goal runs"
         >
           <div

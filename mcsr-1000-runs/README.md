@@ -128,6 +128,57 @@ re-run; `sync` never touches formatting):
 - The Dashboard leads with a `X / 1000 Runs` hero plus a progress bar, then
   W/L/D/Forfeit counts (colour-accented), completion % and the timing stats.
 
+## Stream overlay: auto-setting the run counter
+
+The OBS overlay (`/overlay` in the parent dashboard app) shows `X / 1000` in its
+header. That number is **read straight from this spreadsheet** rather than typed
+in, so a `sync` is all it takes to update the stream overlay.
+
+How it fits together:
+
+```text
+Google Sheet (Dashboard)
+  -> api/total-runs.js   (Vercel serverless function, holds the credentials)
+    -> GET /api/total-runs
+      -> overlay polls it every ?poll= seconds (default 20)
+```
+
+The browser never sees Google credentials, so the read happens server-side. The
+function finds the counter by matching the row labelled `Completed Runs / 1000`
+(it does not assume a fixed cell), and reads the goal from that same label.
+
+### Vercel setup
+
+Add these as **environment variables** in the Vercel project:
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `SPREADSHEET_ID` | yes | Same value as the tracker's `SPREADSHEET_ID`. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | one of these three | Paste the **whole key JSON inline** - Vercel has no key file. Share the spreadsheet with the service-account email. |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REFRESH_TOKEN` | one of these three | Matches an existing tracker OAuth setup. |
+| `MCSR_DASHBOARD_SHEET` | no | Sheet title (default `Dashboard`). |
+| `MCSR_DASHBOARD_RANGE` | no | Range scanned (default `Dashboard!A1:B24`). |
+| `MCSR_COUNTER_LABEL` | no | Label regex (default `completed\s+runs`). |
+| `TOTAL_RUNS_CACHE_MS` | no | Success cache TTL (default `60000`). |
+
+The function is public and read-only. It caches for a minute per warm instance
+and sets `s-maxage=60, stale-while-revalidate=600`, so an OBS source polling
+every 20s costs roughly one sheet read a minute and cannot be used to hammer the
+Sheets API. A failed read serves the last known-good value rather than an error,
+so the overlay never blanks mid-stream.
+
+Test it with `curl https://<your-domain>/api/total-runs` - it should return
+`{"totalRuns":777,"goalRuns":1000,...}`. A `500` means the env vars are missing;
+a `502` means the credentials could not read the sheet (check that the
+spreadsheet is shared with the service account, and that `npm run sync` has
+written the Dashboard at least once).
+
+### Overlay URL options
+
+`?total=123` pins a manual number and stops the polling (still adjustable with
+the `↑`/`↓` hotkeys); omit it to auto-set from the spreadsheet. `?goal=` and
+`?counter=<url>` override the goal and the endpoint respectively.
+
 ## Reset
 
 ```bash
