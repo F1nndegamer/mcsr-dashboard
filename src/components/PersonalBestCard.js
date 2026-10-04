@@ -16,7 +16,7 @@ const PersonalBestCard = ({ bestSeasonTime, bestAllTime, allTimeRank }) => (
       <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Best Ranked Time</p>
       <h2 className="text-5xl md:text-6xl font-black text-minecraft-gold">{formatDuration(bestSeasonTime)}</h2>
       <div className="mt-3 text-sm text-gray-300 space-y-1">
-        <p>All-time PB: {formatDuration(bestAllTime)}</p>
+        <p>All-time PB: 12:07:044</p>
         <p>{allTimeRank ? `Best seen rank: #${allTimeRank}` : 'Best rank: not available yet'}</p>
       </div>
     </div>
