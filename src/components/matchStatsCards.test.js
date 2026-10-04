@@ -5,13 +5,24 @@ import StreaksCard from "./StreaksCard";
 import RhythmCard from "./RhythmCard";
 import VolatilityCard from "./VolatilityCard";
 import PaceCard from "./PaceCard";
+import OpponentEloCard from "./OpponentEloCard";
+import RecordsCard from "./RecordsCard";
+import SplitTrendCard from "./SplitTrendCard";
 
 const USER_UUID = "abc123";
 
 const atUtc = (year, month, day, hour) =>
   Math.floor(Date.UTC(year, month - 1, day, hour) / 1000);
 
-const makeMatch = ({ id, dateSeconds, winner, change, time, forfeited = false }) => ({
+const makeMatch = ({
+  id,
+  dateSeconds,
+  winner,
+  change,
+  time,
+  forfeited = false,
+  opponentElo,
+}) => ({
   id,
   type: 2,
   season: 8,
@@ -20,7 +31,11 @@ const makeMatch = ({ id, dateSeconds, winner, change, time, forfeited = false })
   result: { uuid: winner, time },
   changes: [
     { uuid: USER_UUID, eloRate: 1700 + change, change },
-    { uuid: "opponent", eloRate: 1700 - change, change: -change },
+    {
+      uuid: "opponent",
+      eloRate: opponentElo ?? 1700 - change,
+      change: -change,
+    },
   ],
 });
 
@@ -136,6 +151,91 @@ test("challenge progress handles an empty history safely", async () => {
   expect(
     screen.getByText(/Need at least two timed matches to project a pace/i),
   ).toBeInTheDocument();
+});
+
+test("opponent elo card buckets win rate by opponent rating", () => {
+  // Opponents: 1690/1695/1712 land in the 1600-1800 band, 2100 in 2000-2200.
+  const withBands = [
+    ...matches,
+    makeMatch({
+      id: 5,
+      dateSeconds: atUtc(2026, 3, 6, 13),
+      winner: "opponent",
+      change: -5,
+      time: 900000,
+      opponentElo: 2100,
+    }),
+  ];
+
+  render(<OpponentEloCard rankedMatches={withBands} userUuid={USER_UUID} />);
+
+  expect(screen.getByText(/Who You Beat/i)).toBeInTheDocument();
+  expect(screen.getByText("1600-1800")).toBeInTheDocument();
+  expect(screen.getByText("2000-2200")).toBeInTheDocument();
+  // 3W/1L in the low band (shown on the band row and again in Best band).
+  expect(screen.getAllByText(/75%/)).toHaveLength(2);
+  // The 2000-2200 band has a single game, so it is faded as a thin sample.
+  expect(
+    screen.getByText(/Faded bars have fewer than 3 games/i),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/1600-1800 • 75% over 4 games/i)).toBeInTheDocument();
+});
+
+test("records card surfaces daily and session extremes", () => {
+  render(<RecordsCard rankedMatches={matches} userUuid={USER_UUID} />);
+
+  expect(screen.getByText(/Records/i)).toBeInTheDocument();
+  expect(screen.getByText("Best Elo day")).toBeInTheDocument();
+  expect(screen.getByText("Most games in a day")).toBeInTheDocument();
+  expect(screen.getByText("Longest session")).toBeInTheDocument();
+  expect(screen.getByText("Fastest win")).toBeInTheDocument();
+  expect(screen.getByText("8:00")).toBeInTheDocument();
+});
+
+test("records card handles an empty history", () => {
+  render(<RecordsCard rankedMatches={[]} userUuid={USER_UUID} />);
+
+  expect(screen.getByText(/No ranked matches to break yet/i)).toBeInTheDocument();
+});
+
+test("split trend card needs four timed runs before comparing", () => {
+  render(<SplitTrendCard matches={[]} userUuid={USER_UUID} />);
+
+  expect(screen.getByText(/No match timelines loaded to compare yet/i)).toBeInTheDocument();
+});
+
+const makeTimedMatch = ({ id, complete }) => ({
+  id,
+  type: 2,
+  players: [{ uuid: USER_UUID }],
+  completions: [{ uuid: USER_UUID, time: complete }],
+  timelines: [
+    { uuid: USER_UUID, type: "projectelo.timeline.reset", time: 0 },
+    { uuid: USER_UUID, type: "story.enter_the_nether", time: Math.round(complete * 0.3) },
+    { uuid: USER_UUID, type: "projectelo.timeline.blind_travel", time: Math.round(complete * 0.6) },
+    { uuid: USER_UUID, type: "story.follow_ender_eye", time: Math.round(complete * 0.8) },
+  ],
+  result: { uuid: USER_UUID, time: complete },
+});
+
+test("split trend card buckets runs fastest to slowest", () => {
+  const timed = [
+    makeTimedMatch({ id: 11, complete: 400000 }),
+    makeTimedMatch({ id: 12, complete: 500000 }),
+    makeTimedMatch({ id: 13, complete: 600000 }),
+    makeTimedMatch({ id: 14, complete: 900000 }),
+  ];
+
+  render(
+    <SplitTrendCard matches={timed} userUuid={USER_UUID} totalWindow={50} />,
+  );
+
+  expect(screen.getByText(/Split Regression/i)).toBeInTheDocument();
+  expect(screen.getByText("Fastest")).toBeInTheDocument();
+  expect(screen.getByText("Slowest")).toBeInTheDocument();
+  expect(screen.getByText("4/50 loaded")).toBeInTheDocument();
+  // Slowest run is 900s vs fastest 400s.
+  expect(screen.getByText("+8:20")).toBeInTheDocument();
 });
 
 test("cards render safe empty states without data", () => {

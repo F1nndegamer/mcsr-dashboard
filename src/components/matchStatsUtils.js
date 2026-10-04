@@ -31,6 +31,24 @@ export const formatHours = (ms) => {
   return `${hours.toFixed(1)}h`;
 };
 
+/** Post-match Elo of the user, taken from the match's change records. */
+export const getUserEloAfter = (match, userUuid) => {
+  const change = (match?.changes || []).find((entry) => entry?.uuid === userUuid);
+
+  return typeof change?.eloRate === "number" ? change.eloRate : null;
+};
+
+/** Post-match Elo of the opponent, taken from the match's change records. */
+export const getOpponentElo = (match, userUuid) => {
+  const changes = match?.changes;
+
+  if (!Array.isArray(changes) || !userUuid) return null;
+
+  const opponent = changes.find((entry) => entry?.uuid && entry.uuid !== userUuid);
+
+  return typeof opponent?.eloRate === "number" ? opponent.eloRate : null;
+};
+
 export const formatSigned = (value) => {
   if (typeof value !== "number" || !Number.isFinite(value)) return "N/A";
 

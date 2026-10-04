@@ -14,6 +14,9 @@ import RhythmCard from "./components/RhythmCard";
 import VolatilityCard from "./components/VolatilityCard";
 import PaceCard from "./components/PaceCard";
 import ChallengeProgressCard from "./components/ChallengeProgressCard";
+import OpponentEloCard from "./components/OpponentEloCard";
+import RecordsCard from "./components/RecordsCard";
+import SplitTrendCard from "./components/SplitTrendCard";
 import NetherEnterBySeedCard from "./components/NetherEnterBySeedCard";
 import { buildSelectedTimelineRows } from "./components/timelineUtils";
 import {
@@ -429,6 +432,14 @@ const App = () => {
           rankedMatches={allTimeRankedMatches}
           userUuid={user.uuid}
         />
+        <OpponentEloCard
+          rankedMatches={allTimeRankedMatches}
+          userUuid={user.uuid}
+        />
+        <RecordsCard
+          rankedMatches={allTimeRankedMatches}
+          userUuid={user.uuid}
+        />
       </div>
 
       <div className="lg:col-span-6 space-y-6">
@@ -449,6 +460,12 @@ const App = () => {
         />
         <AverageTimelinesCard
           timelineRows={averageTimelineRows}
+          isLoading={isLoadingAverageTimelines}
+          totalWindow={Math.min(rankedRecentMatches.length, 50)}
+        />
+        <SplitTrendCard
+          matches={recentDetailedMatches}
+          userUuid={user.uuid}
           isLoading={isLoadingAverageTimelines}
           totalWindow={Math.min(rankedRecentMatches.length, 50)}
         />
