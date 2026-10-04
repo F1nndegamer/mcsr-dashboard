@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import ChallengeProgressCard from "./ChallengeProgressCard";
 import StreaksCard from "./StreaksCard";
 import RhythmCard from "./RhythmCard";
 import VolatilityCard from "./VolatilityCard";
@@ -68,6 +70,72 @@ test("pace card aggregates durations and length buckets", () => {
   expect(
     Array.from(buckets.querySelectorAll(".w-6")).map((node) => node.textContent),
   ).toEqual(["1", "2", "0", "1", "0"]);
+});
+
+test("challenge progress falls back to match history when the endpoint fails", async () => {
+  global.fetch = jest.fn().mockRejectedValue(new Error("no endpoint"));
+
+  render(
+    <ChallengeProgressCard
+      rankedMatches={matches}
+      userUuid={USER_UUID}
+      goal={1000}
+    />,
+  );
+
+  expect(screen.getByText(/1000 Run Challenge/i)).toBeInTheDocument();
+  // 4 matches / 1000 goal.
+  // The percentage is split across two nodes (value + "%"), so read the parent.
+  const percentNode = screen.getByText("%").parentElement;
+  expect(percentNode).toHaveTextContent("0.4%");
+  expect(screen.getByText("4 / 1,000")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/API match history/i)).toBeInTheDocument());
+});
+
+test("challenge progress prefers the tracker spreadsheet total", async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ totalRuns: 640, goalRuns: 1000 }),
+  });
+
+  render(
+    <ChallengeProgressCard rankedMatches={matches} userUuid={USER_UUID} />,
+  );
+
+  // The spreadsheet value arrives asynchronously, so wait for it.
+  await waitFor(() =>
+    expect(screen.getByText("%").parentElement).toHaveTextContent("64.0%"),
+  );
+  expect(screen.getByText("640 / 1,000")).toBeInTheDocument();
+  expect(screen.getByText("360 to go")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/tracker spreadsheet/i)).toBeInTheDocument());
+});
+
+test("challenge progress projects pace and switches windows", async () => {
+  global.fetch = jest.fn().mockRejectedValue(new Error("no endpoint"));
+
+  render(
+    <ChallengeProgressCard rankedMatches={matches} userUuid={USER_UUID} />,
+  );
+
+  expect(screen.getByText("Runs per day")).toBeInTheDocument();
+  expect(screen.getByText(/days/)).toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: "50" }));
+
+  // A 50-match window only has the same 4 matches, so the pace is unchanged.
+  expect(screen.getByText("Runs per day")).toBeInTheDocument();
+});
+
+test("challenge progress handles an empty history safely", async () => {
+  global.fetch = jest.fn().mockRejectedValue(new Error("no endpoint"));
+
+  render(<ChallengeProgressCard rankedMatches={[]} userUuid={USER_UUID} />);
+
+  expect(screen.getByText("%").parentElement).toHaveTextContent("0.0%");
+  expect(
+    screen.getByText(/Need at least two timed matches to project a pace/i),
+  ).toBeInTheDocument();
 });
 
 test("cards render safe empty states without data", () => {

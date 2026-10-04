@@ -13,6 +13,7 @@ import StreaksCard from "./components/StreaksCard";
 import RhythmCard from "./components/RhythmCard";
 import VolatilityCard from "./components/VolatilityCard";
 import PaceCard from "./components/PaceCard";
+import ChallengeProgressCard from "./components/ChallengeProgressCard";
 import NetherEnterBySeedCard from "./components/NetherEnterBySeedCard";
 import { buildSelectedTimelineRows } from "./components/timelineUtils";
 import {
@@ -471,6 +472,10 @@ const App = () => {
       </div>
 
       <div className="lg:col-span-3 space-y-6">
+        <ChallengeProgressCard
+          rankedMatches={allTimeRankedMatches}
+          userUuid={user.uuid}
+        />
         <RhythmCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
         <PaceCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
         <ConnectionsCard connections={user.connections} />
