@@ -1,0 +1,413 @@
+/*
+ * Self-contained pixel/MCSR theme for the OBS stream stats overlay.
+ * Designed for a 1200x200 Browser Source. Every font size sits on the
+ * 8px pixel grid of Press Start 2P (8 / 16 / 24 / 32) so glyphs render
+ * crisp instead of blurry at sub-pixel sizes.
+ */
+
+/* OBS Browser Source needs a fully transparent page background. */
+body.overlay-active,
+body.overlay-active #root {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.mcsr-overlay-root {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: transparent;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+.mcsr-overlay-root *,
+.mcsr-overlay-root *::before,
+.mcsr-overlay-root *::after {
+  box-sizing: border-box;
+}
+
+.mcsr-overlay {
+  width: min(100%, 1600px);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #1d1128;
+  color: #ffffff;
+  padding: 8px 10px;
+}
+
+/* Header: title left; big counter + status right */
+
+.mcsr-overlay__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 6px;
+  border-bottom: 4px solid #ff2e97;
+}
+
+.mcsr-overlay__header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.mcsr-overlay__title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  color: #ffffff;
+}
+
+.mcsr-overlay__progress-count {
+  font-size: 24px;
+  line-height: 1.25;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.mcsr-overlay__progress-percent {
+  font-size: 8px;
+  color: #d8b4fe;
+}
+
+.mcsr-overlay__status {
+  display: none;
+  flex-shrink: 0;
+  font-size: 8px;
+  line-height: 1;
+  padding: 6px 8px;
+  background: #150c1f;
+  border: 3px solid #a855f7;
+  color: #d8b4fe;
+}
+
+.mcsr-overlay__status--live {
+  border-color: #55ff55;
+  color: #55ff55;
+}
+
+.mcsr-overlay__status--syncing {
+  border-color: #ffaa00;
+  color: #ffaa00;
+}
+
+.mcsr-overlay__status--offline {
+  border-color: #ff5555;
+  color: #ff5555;
+}
+
+/* Progress bar */
+
+.mcsr-overlay__progress-track {
+  height: 20px;
+  background: #120a1c;
+  border: 4px solid #a855f7;
+  overflow: hidden;
+}
+
+.mcsr-overlay__progress-fill {
+  height: 100%;
+  background: #ff2e97 0 16px;
+  box-shadow: 0 0 14px rgba(255, 46, 151, 0.85);
+  transition: width 0.5s ease-in-out;
+}
+
+/* Stats grid — 6 tiles; ELO-change graph spans two columns */
+
+.mcsr-overlay__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  flex: 1;
+}
+
+.mcsr-overlay__stat {
+  background: #150c1f;
+  border: 4px solid #a855f7;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+}
+
+.mcsr-overlay__stat-label {
+  font-size: 8px;
+  line-height: 1.5;
+  text-transform: uppercase;
+  color: #e9d5ff;
+}
+
+.mcsr-overlay__stat-value {
+  font-size: 32px;
+  line-height: 1.2;
+  color: #ffffff;
+  overflow-wrap: anywhere;
+}
+
+.mcsr-overlay__stat-value--accent {
+  color: #ffaa00;
+}
+
+.mcsr-overlay__stat-value--positive {
+  color: #55ff55;
+}
+
+.mcsr-overlay__stat-value--negative {
+  color: #ff5555;
+}
+
+/* ELO-change graph tile (spans two columns) */
+
+.mcsr-overlay__stat--graph {
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  grid-column: span 2;
+}
+
+.mcsr-overlay__stat-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  width: 132px;
+  flex-shrink: 0;
+}
+
+.mcsr-overlay__stat-graph {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background: #120a1c;
+  border: 2px solid #a855f7;
+}
+
+/* Absolute fill keeps the SVG out of intrinsic height calculations,
+   otherwise its 1:1 viewBox would blow the tile height way past 200px. */
+.mcsr-overlay__elo-graph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mcsr-overlay__elo-graph-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linejoin: miter;
+  stroke-linecap: square;
+}
+
+.mcsr-overlay__elo-graph-area {
+  opacity: 0.16;
+}
+
+.mcsr-overlay__elo-graph-zero {
+  stroke: rgba(233, 213, 255, 0.5);
+  stroke-width: 1;
+  stroke-dasharray: 6 6;
+}
+
+.mcsr-overlay__elo-graph--positive .mcsr-overlay__elo-graph-line {
+  stroke: #55ff55;
+}
+
+.mcsr-overlay__elo-graph--positive .mcsr-overlay__elo-graph-area {
+  fill: #55ff55;
+}
+
+.mcsr-overlay__elo-graph--negative .mcsr-overlay__elo-graph-line {
+  stroke: #ff5555;
+}
+
+.mcsr-overlay__elo-graph--negative .mcsr-overlay__elo-graph-area {
+  fill: #ff5555;
+}
+
+.mcsr-overlay__elo-graph--neutral .mcsr-overlay__elo-graph-line {
+  stroke: #b026ff;
+}
+
+.mcsr-overlay__elo-graph--neutral .mcsr-overlay__elo-graph-area {
+  fill: #b026ff;
+}
+
+/* Optional on-screen edit controls (enable with ?controls=1) */
+
+.mcsr-overlay__controls {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.mcsr-overlay__control {
+  font-family: inherit;
+  font-size: 8px;
+  line-height: 1;
+  padding: 4px 6px;
+  color: #d8b4fe;
+  background: #150c1f;
+  border: 2px solid #a855f7;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.mcsr-overlay__control:hover {
+  color: #ffffff;
+  border-color: #ff2e97;
+}
+
+.mcsr-overlay__control:focus-visible {
+  outline: 2px solid #ff2e97;
+  outline-offset: 1px;
+}
+
+/* Stream Info tile — a smaller sibling of the main stat tiles, used for the
+   stream links / status / watch-VOD rows that sit beside the counter. */
+
+.mcsr-overlay__stat-label--stream {
+  font-size: 8px;
+  color: #e9d5ff;
+}
+
+.mcsr-overlay__stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 64px;
+}
+
+.mcsr-overlay__stat-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mcsr-overlay__stat-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #a855f7;
+  border-radius: 2px;
+  background: #150c1f;
+}
+
+.mcsr-overlay__stat-icon--twitch {
+  color: #9146ff;
+  background: #201450;
+}
+
+.mcsr-overlay__stat-icon--youtube {
+  color: #ff0033;
+  background: #500814;
+}
+
+.mcsr-overlay__stat-icon--watch {
+  color: #4d9fff;
+  background: #141428;
+}
+
+.mcsr-overlay__stat-icon--clock {
+  color: #ffaa00;
+  background: #3a2a08;
+}
+
+.mcsr-overlay__stat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px 4px;
+}
+
+.mcsr-overlay__stat-topline {
+  font-size: 8px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: #e9d5ff;
+}
+
+.mcsr-overlay__stat-detail {
+  font-size: 11px;
+  line-height: 1.25;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcsr-overlay__stat-value--twitch {
+  color: #9146ff;
+}
+
+.mcsr-overlay__stat-value--youtube {
+  color: #ff0033;
+}
+
+.mcsr-overlay__stat-value--watch {
+  color: #4d9fff;
+  font-size: 9px;
+}
+
+.mcsr-overlay__stat-detail--watch {
+  font-size: 8px;
+  color: #d8b4fe;
+  white-space: normal;
+  overflow: visible;
+}
+
+.mcsr-overlay__stat-row--watch {
+  border-top: 2px solid #a855f7;
+  padding-top: 4px;
+}
+
+.mcsr-overlay__stat-row--clock {
+  border-top: 2px solid #a855f7;
+  padding-top: 4px;
+}
+
+@media (max-width: 1280px) {
+  .mcsr-overlay {
+    min-height: 0;
+  }
+
+  .mcsr-overlay__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .mcsr-overlay {
+    min-height: 0;
+  }
+
+  .mcsr-overlay__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mcsr-overlay__title,
+  .mcsr-overlay__progress-count {
+    font-size: 16px;
+  }
+
+  .mcsr-overlay__stat-value {
+    font-size: 24px;
+  }
+}

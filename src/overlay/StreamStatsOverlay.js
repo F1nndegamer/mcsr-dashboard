@@ -13,7 +13,9 @@ import {
   formatEloDelta,
   getUtcStartOfTodaySeconds,
 } from "./overlayStats";
+import StreamInfoTile from "./StreamInfoOverlay";
 import "./StreamStatsOverlay.css";
+import "./StreamInfoOverlay.css";
 
 const StatTile = ({ label, value, tone = "default", graph = null }) => {
   const valueNode = (
@@ -310,6 +312,53 @@ const StreamStatsOverlay = () => {
     };
   }, [config.username, config.pollIntervalMs]);
 
+  // Stream info state
+  const [twitchHandle, setTwitchHandle] = useState(null);
+  const [youtubeHandle, setYoutubeHandle] = useState(null);
+  const [liveStatus, setLiveStatus] = useState(null);
+  const [streamUrl, setStreamUrl] = useState(null);
+
+  // Fetch stream info from MCSR API (connections, live status, VOD)
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchStreamInfo = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/users/${config.username}/stream`);
+        if (cancelled) return;
+
+        if (response.ok) {
+          const streamData = await response.json();
+          if (streamData?.status === "success" && streamData?.data) {
+            const data = streamData.data;
+            if (!cancelled) {
+              setTwitchHandle(data.twitchHandle || null);
+              setYoutubeHandle(data.youtubeHandle || null);
+              setLiveStatus(data.liveStatus || null);
+              setStreamUrl(data.streamUrl || null);
+            }
+          }
+        } else {
+          const errText = await response.text();
+          console.warn(
+            "[mcsr-overlay] Could not load stream info:",
+            response.status,
+            errText,
+          );
+        }
+      } catch (err) {
+        console.warn("[mcsr-overlay] Stream info fetch failed:", err);
+      }
+    };
+
+    fetchStreamInfo();
+    const intervalId = window.setInterval(fetchStreamInfo, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [config.username]);
+
   const stats = useMemo(
     () =>
       computeOverlayStats({
@@ -451,6 +500,18 @@ const StreamStatsOverlay = () => {
               stats.personalBest == null ? "—" : formatClock(stats.personalBest)
             }
             tone="accent"
+          />
+          <StreamInfoTile
+            twitchHandle={twitchHandle}
+            youtubeHandle={youtubeHandle}
+            status={liveStatus || 'offline'}
+            statusLabel={
+              liveStatus === 'online' ? 'LIVE' : liveStatus === 'offline' ? 'OFFLINE' : undefined
+            }
+            twitchUrl={undefined}
+            youtubeUrl={undefined}
+            streamUrl={streamUrl}
+            watchUrl={streamUrl}
           />
         </div>
       </section>

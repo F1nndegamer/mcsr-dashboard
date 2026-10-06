@@ -14,6 +14,7 @@ import RhythmCard from "./components/RhythmCard";
 import VolatilityCard from "./components/VolatilityCard";
 import PaceCard from "./components/PaceCard";
 import ChallengeProgressCard from "./components/ChallengeProgressCard";
+import StreamInfoCard from "./components/StreamInfoCard";
 import OpponentEloCard from "./components/OpponentEloCard";
 import RecordsCard from "./components/RecordsCard";
 import SplitTrendCard from "./components/SplitTrendCard";
@@ -493,8 +494,28 @@ const App = () => {
           rankedMatches={allTimeRankedMatches}
           userUuid={user.uuid}
         />
-        <RhythmCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
-        <PaceCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
+        <StreamInfoCard
+          twitchHandle={user.connections?.twitch?.name || ''}
+          twitchUrl={
+            user.connections?.twitch?.id
+              ? `https://twitch.tv/${user.connections.twitch.id}`
+              : null
+          }
+          youtubeHandle={user.connections?.youtube?.name || ''}
+          youtubeUrl={
+            user.connections?.youtube?.id
+              ? `https://www.youtube.com/@${user.connections.youtube.id}`
+              : null
+          }
+          liveStatus={user.live ? 'online' : 'offline'}
+          streamUrl={
+            user.liveMatches?.[0]?.data?.[user.uuid]?.liveUrl ?? null
+          }
+        />
+        <RhythmCard
+          rankedMatches={allTimeRankedMatches}
+          userUuid={user.uuid}
+        />
         <ConnectionsCard connections={user.connections} />
         {/* <WeeklyRaceCard weeklyRaces={user.weeklyRaces} /> */}
         <RecentMatchesCard
