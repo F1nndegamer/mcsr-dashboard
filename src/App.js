@@ -516,6 +516,7 @@ const App = () => {
           rankedMatches={allTimeRankedMatches}
           userUuid={user.uuid}
         />
+        <PaceCard rankedMatches={allTimeRankedMatches} userUuid={user.uuid} />
         <ConnectionsCard connections={user.connections} />
         {/* <WeeklyRaceCard weeklyRaces={user.weeklyRaces} /> */}
         <RecentMatchesCard
