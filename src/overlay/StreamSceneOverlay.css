@@ -3,7 +3,7 @@
  * stream). Extends the existing stats overlay theme rather than inventing a
  * new one: same palette, same 4px sharp-corner borders, same 8px spacing, and
  * the status pill / progress bar are rendered straight from
- * StreamInfoOverlay.css. Font sizes stay on the 8px pixel grid of
+ * StreamStatsOverlay.css. Font sizes stay on the 8px pixel grid of
  * Press Start 2P; the larger sizes (40/48/64) are 8px multiples scaled for
  * the 1080p canvas instead of the 200px strip.
  */

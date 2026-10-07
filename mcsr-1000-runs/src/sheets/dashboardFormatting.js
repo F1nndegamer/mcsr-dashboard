@@ -159,6 +159,39 @@ export const dashboardFormatRequests = ({ sheetId, dashboard }) => {
     push(cellReq(sheetId, progressPctRow, 1, { textFormat: { bold: true, foregroundColor: GREEN } }, TEXT_FIELDS));
   }
 
+  // --- stream link segment (below the chart): purple = special -------------
+  if (dashboard.streamHeaderRow && dashboard.streamValueRow) {
+    push(
+      cellReq(
+        sheetId,
+        dashboard.streamHeaderRow,
+        0,
+        { textFormat: { bold: true, foregroundColor: PURPLE } },
+        TEXT_FIELDS,
+      ),
+    );
+    for (const column of [1, 2, 3]) {
+      push(
+        cellReq(
+          sheetId,
+          dashboard.streamHeaderRow,
+          column,
+          { textFormat: { bold: true, foregroundColor: SLATE } },
+          TEXT_FIELDS,
+        ),
+      );
+      push(
+        cellReq(
+          sheetId,
+          dashboard.streamValueRow,
+          column,
+          { textFormat: { underline: true, foregroundColor: PURPLE } },
+          `${TEXT_FIELDS},userEnteredFormat.textFormat.underline`,
+        ),
+      );
+    }
+  }
+
   // --- chart helper columns: one consistent duration format ------------------
   push({
     repeatCell: {

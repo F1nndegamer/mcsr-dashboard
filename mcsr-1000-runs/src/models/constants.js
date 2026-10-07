@@ -28,6 +28,29 @@ export const RUNS_SHEET = "Runs";
 export const DASHBOARD_SHEET = "Dashboard";
 
 /**
+ * The "Stream" link block written directly below the last run row of the
+ * Runs sheet (and surfaced as a segment on the Dashboard).
+ *
+ * Layout: column A holds the row label, column B the URL -
+ *   [Stream] [                    ]   <- block heading (also the marker that
+ *   [Twitch] [https://twitch.tv/..]      readRunsSheet uses to keep the block
+ *   [YouTube] [https://www.../@..]     out of the record rows)
+ *   [Latest VOD] [https://www.youtube.com/watch?v=..]  (auto-looked-up)
+ *
+ * Column B is deliberately outside every column the Dashboard aggregates over
+ * (Match ID / Result / Final Time / Data Status), so the block can never skew
+ * a stat. The label constants are shared with the Dashboard's INDEX/MATCH
+ * formulas so the two can never drift apart.
+ */
+export const STREAM_BLOCK_LABEL = "Stream";
+
+export const STREAM_LINK_LABELS = Object.freeze({
+  twitch: "Twitch",
+  youtube: "YouTube",
+  vod: "Latest VOD",
+});
+
+/**
  * Display placeholder for a value that is genuinely not applicable, as opposed
  * to one that is merely unknown or not yet filled in.
  *

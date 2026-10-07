@@ -1,4 +1,10 @@
-import { API_SEEDED_FIELDS, MANUAL_FIELDS, RUNS_SHEET } from "../models/constants.js";
+import {
+  API_SEEDED_FIELDS,
+  MANUAL_FIELDS,
+  RUNS_SHEET,
+  STREAM_BLOCK_LABEL,
+  STREAM_LINK_LABELS,
+} from "../models/constants.js";
 import {
   COLUMN_COUNT,
   LAST_COLUMN_LETTER,
@@ -25,7 +31,21 @@ export const readRunsSheet = async ({ backend, capacity = 2500 }) => {
   const header = values[0] ?? [];
   // The Sheets API omits trailing empty rows, but local backends may return
   // a padded grid - either way, only rows with a Match ID are records.
-  const dataRows = values.slice(1);
+  // Everything from the "Stream" heading downwards is the link block: it is
+  // reported separately so `dataRows` (and therefore the sync's clear range)
+  // only ever covers real record rows.
+  let blockIndex = -1;
+  for (let index = 1; index < values.length; index += 1) {
+    if (values[index]?.[0] === STREAM_BLOCK_LABEL) {
+      blockIndex = index;
+      break;
+    }
+  }
+  const dataRows = blockIndex === -1 ? values.slice(1) : values.slice(1, blockIndex);
+  const streamBlock =
+    blockIndex === -1
+      ? null
+      : { startRow: blockIndex + 1, rowCount: values.length - blockIndex };
 
   const records = [];
   dataRows.forEach((cells) => {
@@ -35,7 +55,7 @@ export const readRunsSheet = async ({ backend, capacity = 2500 }) => {
     records.push(record);
   });
 
-  return { header, dataRows, records };
+  return { header, dataRows, records, streamBlock };
 };
 
 /** True when the sheet's header row matches the expected schema exactly. */
@@ -133,6 +153,76 @@ export const cellEquals = (desired, actual, type) => {
 };
 
 /**
+ * Builds the rows of the Stream link block: heading first, then one row per
+ * available link. The "Latest VOD" row is omitted when no VOD URL resolved
+ * (no API key / no uploads), so the block never shows a dead label.
+ */
+export const buildStreamBlockRows = ({
+  twitchUrl = "",
+  youtubeUrl = "",
+  vodUrl = null,
+} = {}) => {
+  const rows = [[STREAM_BLOCK_LABEL]];
+  if (twitchUrl) rows.push([STREAM_LINK_LABELS.twitch, twitchUrl]);
+  if (youtubeUrl) rows.push([STREAM_LINK_LABELS.youtube, youtubeUrl]);
+  if (vodUrl) rows.push([STREAM_LINK_LABELS.vod, vodUrl]);
+  return rows;
+};
+
+const blankBlockRows = (rowCount) =>
+  Array.from({ length: rowCount }, () => Array.from({ length: COLUMN_COUNT }, () => ""));
+
+/**
+ * Plans the Stream block that sits directly below the last run row.
+ *
+ * The block always starts at `recordCount + 2` (record rows end at
+ * `recordCount + 1`), so it follows the data down as runs are added. When the
+ * previously written block is no longer at that exact position/size, a clear
+ * of the old range is emitted so stale rows can never accumulate.
+ *
+ * @returns {{clear: Object|null, write: Object|null}}
+ */
+export const planStreamBlock = ({
+  recordCount = 0,
+  previousBlock = null,
+  rows = [],
+  sheetTitle = RUNS_SHEET,
+} = {}) => {
+  const startRow = recordCount + 2;
+  const moved =
+    !previousBlock ||
+    previousBlock.startRow !== startRow ||
+    previousBlock.rowCount !== rows.length;
+  const clear =
+    previousBlock && moved
+      ? {
+          range: `${sheetTitle}!A${previousBlock.startRow}:${LAST_COLUMN_LETTER}${
+            previousBlock.startRow + previousBlock.rowCount - 1
+          }`,
+          values: blankBlockRows(previousBlock.rowCount),
+          majorDimension: "ROWS",
+        }
+      : null;
+
+  if (rows.length === 0) return { clear, write: null };
+
+  // Full-width rows: the write covers A..LAST_COLUMN_LETTER, so every
+  // trailing cell must be an explicit empty to wipe leftovers rather than
+  // leave them untouched.
+  const padded = rows.map((row) => {
+    const next = [...row];
+    while (next.length < COLUMN_COUNT) next.push("");
+    return next.slice(0, COLUMN_COUNT);
+  });
+  const write = {
+    range: `${sheetTitle}!A${startRow}:${LAST_COLUMN_LETTER}${startRow + rows.length - 1}`,
+    values: padded,
+    majorDimension: "ROWS",
+  };
+  return { clear, write };
+};
+
+/**
  * Builds the minimal set of writes for the Runs sheet.
  *
  * Only cells whose value actually changed are written, which is what makes the
@@ -141,8 +231,19 @@ export const cellEquals = (desired, actual, type) => {
  *
  * The `Completion` (formula) column is excluded here and written separately,
  * because formula cells must be sent with USER_ENTERED.
+ *
+ * The Stream link block is planned alongside the records via `streamRows` /
+ * `previousStreamBlock` and surfaces as `streamClear` / `streamWrite`;
+ * `writeRunsSheet` applies the clear before the record updates and the write
+ * after them (see the ordering notes there).
  */
-export const planRunsUpdates = ({ records = [], existingRows = [], sheetTitle = RUNS_SHEET } = {}) => {
+export const planRunsUpdates = ({
+  records = [],
+  existingRows = [],
+  sheetTitle = RUNS_SHEET,
+  streamRows = [],
+  previousStreamBlock = null,
+} = {}) => {
   const updates = [];
   const formulaRows = [];
 
@@ -189,7 +290,20 @@ export const planRunsUpdates = ({ records = [], existingRows = [], sheetTitle = 
         }
       : null;
 
-  return { updates, formulaRows, clearUpdate };
+  const streamPlan = planStreamBlock({
+    recordCount: records.length,
+    previousBlock: previousStreamBlock,
+    rows: streamRows,
+    sheetTitle,
+  });
+
+  return {
+    updates,
+    formulaRows,
+    clearUpdate,
+    streamClear: streamPlan.clear,
+    streamWrite: streamPlan.write,
+  };
 };
 
 // Local helper so the flush closure stays readable.
@@ -205,7 +319,15 @@ const columnLetterFor = (index) => columnLetter(index);
  * @returns {{rawUpdateCount: number, formulaCellCount: number, updates: Object[]}}
  */
 export const writeRunsSheet = async ({ backend, plan, dryRun = false }) => {
-  const rawUpdates = [...plan.updates];
+  // Ordering matters. The stale Stream block is cleared FIRST: when records
+  // grow into the block's old rows, the record updates below run after that
+  // clear, so the planner's skip-unchanged decisions (made against the
+  // pre-clear values) still hold - a cell is only ever skipped when its old
+  // block value already equals the desired record value (both empty), and the
+  // new block is written LAST so it wins any overlap with its old rows.
+  const rawUpdates = [];
+  if (plan.streamClear) rawUpdates.push(plan.streamClear);
+  rawUpdates.push(...plan.updates);
   if (plan.clearUpdate) rawUpdates.push(plan.clearUpdate);
 
   const formulaUpdates =
@@ -218,10 +340,17 @@ export const writeRunsSheet = async ({ backend, plan, dryRun = false }) => {
           },
         ]
       : [];
+  // USER_ENTERED so Sheets turns the raw URLs into clickable links.
+  if (plan.streamWrite) formulaUpdates.push(plan.streamWrite);
 
   const updates = [...rawUpdates, ...formulaUpdates];
   if (dryRun || updates.length === 0) {
-    return { rawUpdateCount: rawUpdates.length, formulaCellCount: plan.formulaRows.length, updates };
+    return {
+      rawUpdateCount: rawUpdates.length,
+      formulaCellCount: plan.formulaRows.length,
+      streamRowCount: plan.streamWrite ? plan.streamWrite.values.length : 0,
+      updates,
+    };
   }
 
   if (rawUpdates.length > 0) {
@@ -231,6 +360,11 @@ export const writeRunsSheet = async ({ backend, plan, dryRun = false }) => {
     await backend.batchUpdateValues({ updates: formulaUpdates, valueInputOption: "USER_ENTERED" });
   }
 
-  return { rawUpdateCount: rawUpdates.length, formulaCellCount: plan.formulaRows.length, updates };
+  return {
+    rawUpdateCount: rawUpdates.length,
+    formulaCellCount: plan.formulaRows.length,
+    streamRowCount: plan.streamWrite ? plan.streamWrite.values.length : 0,
+    updates,
+  };
 };
 

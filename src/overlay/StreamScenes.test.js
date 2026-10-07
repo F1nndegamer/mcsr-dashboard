@@ -85,10 +85,7 @@ describe("scene rendering", () => {
     render(<StreamEndedOverlay />);
     expect(screen.getByText("Stream Ended")).toBeInTheDocument();
     expect(screen.getByText("Thanks For Watching")).toBeInTheDocument();
-    // Header pill + the reused StreamInfoTile's own status pill.
-    expect(screen.getAllByText("OFFLINE").length).toBeGreaterThan(0);
-    // Reused StreamInfoTile renders the Twitch/YouTube handle rows.
-    expect(screen.getAllByText("AwenRuns").length).toBeGreaterThan(0);
+    expect(screen.getByText("OFFLINE")).toBeInTheDocument();
     expect(screen.getByText("Saturday 20:00")).toBeInTheDocument();
   });
 

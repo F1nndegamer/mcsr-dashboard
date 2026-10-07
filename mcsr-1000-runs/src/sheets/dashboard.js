@@ -1,4 +1,4 @@
-import { TARGET_RUNS } from "../models/constants.js";
+import { STREAM_LINK_LABELS, TARGET_RUNS } from "../models/constants.js";
 import { COLUMN_INDEX, COLUMN_LETTERS } from "../models/runRecord.js";
 
 /**
@@ -29,6 +29,16 @@ const progressBarFormula = (targetRow) => {
     `&REPT(CHAR(9617),${BAR_CELLS}-ROUND(${fraction}*${BAR_CELLS},0))`
   );
 };
+
+/**
+ * Live link to a Stream-block row: finds the label in the Runs sheet's column
+ * A and links whatever URL sits next to it in column B. Because the label
+ * comes from STREAM_LINK_LABELS (shared with runSheet.js), the Dashboard and
+ * the Runs block can never drift apart, and the segment follows the block as
+ * it moves down the sheet. IFERROR yields "" when the block is not written.
+ */
+const streamLinkFormula = (label) =>
+  `=IFERROR(HYPERLINK(INDEX(Runs!$B:$B,MATCH("${label}",Runs!$A:$A,0))),"")`;
 
 export const dashboardBuild = ({ capacity = 2500 } = {}) => {
   const statFormulas = [
@@ -81,6 +91,8 @@ export const dashboardBuild = ({ capacity = 2500 } = {}) => {
     grid[progressIndex][1] = `=IFERROR($B${completedRunsRow}/${TARGET_RUNS}, 0)`;
   }
 
+  const chartRowCapacity = Math.max(50, capacity - 2);
+
   return {
     headerRowIndex,
     firstStatRow,
@@ -90,6 +102,23 @@ export const dashboardBuild = ({ capacity = 2500 } = {}) => {
     progressBarRow: statRow("Progress Bar"),
     completedRunsRow,
     grid,
+    // Stream link segment: two rows below the chart (one blank row between),
+    // written separately from `grid` because the grid write is contiguous
+    // A1:D<end> and would otherwise collide with the chart data.
+    streamHeaderRow: chartHeaderRow + 1 + chartRowCapacity + 1,
+    streamValueRow: chartHeaderRow + 2 + chartRowCapacity + 1,
+    streamHeader: [
+      "Stream",
+      STREAM_LINK_LABELS.twitch,
+      STREAM_LINK_LABELS.youtube,
+      STREAM_LINK_LABELS.vod,
+    ],
+    streamValues: [
+      "",
+      streamLinkFormula(STREAM_LINK_LABELS.twitch),
+      streamLinkFormula(STREAM_LINK_LABELS.youtube),
+      streamLinkFormula(STREAM_LINK_LABELS.vod),
+    ],
     // Per-row chart helper formulas. A20:B20 spill from FILTER, so C/D only
     // need their own per-row formulas.
     chartColumns: {
@@ -100,7 +129,7 @@ export const dashboardBuild = ({ capacity = 2500 } = {}) => {
       progressivePb: (row) =>
         `=IFERROR(IF($A${row}="","",MINIFS(${FINAL}, Runs!$${RUN_COL}$2:$${RUN_COL},"<="&$A${row})),"")`,
     },
-    chartRowCapacity: Math.max(50, capacity - 2),
+    chartRowCapacity,
     /** Rows that need a percentage / duration number format. */
     formatRows: [
       { row: statRow("Progress %"), type: "PERCENT", pattern: "0.0%" },

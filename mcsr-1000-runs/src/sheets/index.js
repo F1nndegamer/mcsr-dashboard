@@ -6,8 +6,9 @@ import { dashboardFormatRequests } from "./dashboardFormatting.js";
 import { FileBackend } from "./fileBackend.js";
 import { createTokenProvider } from "./googleAuth.js";
 import { GoogleSheetsBackend } from "./googleSheets.js";
-import { headerMatches } from "./runSheet.js";
+import { buildStreamBlockRows, headerMatches, planStreamBlock, readRunsSheet } from "./runSheet.js";
 import { runsSheetSetupRequests } from "./schema.js";
+import { resolveStreamLinks } from "../core/streamLinks.js";
 
 /**
  * Creates the configured spreadsheet backend.
@@ -73,7 +74,7 @@ const fillTemplate = (grid, values) =>
  * Creates the Runs + Dashboard sheets and applies headers, formats,
  * data validation and filters. Idempotent - safe to re-run.
  */
-export const initializeSheets = async ({ backend, config, logger = console }) => {
+export const initializeSheets = async ({ backend, config, logger = console, fetchImpl }) => {
   await backend.ensureSheet(RUNS_SHEET);
   await backend.ensureSheet(DASHBOARD_SHEET);
 
@@ -148,6 +149,44 @@ export const initializeSheets = async ({ backend, config, logger = console }) =>
           dashboard.chartFirstRow + chartRows.length - 1
         }`,
         values: chartRows,
+      },
+    ],
+  });
+
+  // --- Runs sheet: Stream link block below the last run row ----------------
+  // Positioned from the sheet's actual record count, so re-running init on a
+  // populated sheet never clobbers data; a moved/shrunk old block is cleared
+  // first. The VOD lookup is best-effort (null just drops that row).
+  const { records: existingRecords, streamBlock } = await readRunsSheet({
+    backend,
+    capacity: config.sheetRowCapacity,
+  });
+  const streamLinks = await resolveStreamLinks({
+    stream: config.stream,
+    player: config.player,
+    fetchImpl,
+    logger,
+  });
+  const streamPlan = planStreamBlock({
+    recordCount: existingRecords.length,
+    previousBlock: streamBlock,
+    rows: buildStreamBlockRows(streamLinks),
+  });
+  if (streamPlan.clear) {
+    await backend.batchUpdateValues({ valueInputOption: "RAW", updates: [streamPlan.clear] });
+  }
+  if (streamPlan.write) {
+    await backend.batchUpdateValues({ valueInputOption: "USER_ENTERED", updates: [streamPlan.write] });
+  }
+
+  // --- Dashboard: stream link segment (live formulas over the Runs block) --
+  await backend.batchUpdateValues({
+    valueInputOption: "USER_ENTERED",
+    updates: [
+      {
+        range: `${DASHBOARD_SHEET}!A${dashboard.streamHeaderRow}:D${dashboard.streamValueRow}`,
+        values: [dashboard.streamHeader, dashboard.streamValues],
+        majorDimension: "ROWS",
       },
     ],
   });

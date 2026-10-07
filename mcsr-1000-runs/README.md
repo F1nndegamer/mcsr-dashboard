@@ -49,7 +49,9 @@ one); `SPREADSHEET_TITLE`; `FILE_BACKEND_DIR`; `GOOGLE_CLIENT_ID` /
 the sheet with the service-account email); `GOOGLE_ACCESS_TOKEN` (one-off
 runs); `EXCLUDE_DECAYED` (default `true`); `RECONCILE_DAYS` (default `3`);
 `INCREMENTAL_SEASON_LOOKBACK` (default `1`); `SHEET_ROW_CAPACITY`
-(default `2500`); `DATA_DIR` (raw cache + sync state, default `data`).
+(default `2500`); `DATA_DIR` (raw cache + sync state, default `data`);
+`TWITCH_HANDLE` / `YOUTUBE_HANDLE` (stream links, default `MCSR_PLAYER`);
+`YOUTUBE_API_KEY` (optional, enables the automatic Latest-VOD lookup).
 
 ## Google authentication
 
@@ -127,6 +129,36 @@ re-run; `sync` never touches formatting):
   reports a stray non-zero change.
 - The Dashboard leads with a `X / 1000 Runs` hero plus a progress bar, then
   W/L/D/Forfeit counts (colour-accented), completion % and the timing stats.
+
+## Stream links: Twitch / YouTube / VOD
+
+Every sheet carries a **Stream link block** directly below the last run row of
+`Runs`, plus a matching segment at the bottom of the `Dashboard`:
+
+```text
+Stream                      <- heading (also the marker sync uses)
+Twitch      https://twitch.tv/<handle>
+YouTube     https://www.youtube.com/@<handle>
+Latest VOD  https://www.youtube.com/watch?v=<id>   (auto, see below)
+```
+
+- Handles come from `TWITCH_HANDLE` / `YOUTUBE_HANDLE` and default to
+  `MCSR_PLAYER` (see `.env.example`).
+- With `YOUTUBE_API_KEY` set (YouTube Data API v3), every `sync` and
+  `init-sheet` looks up the channel's newest upload
+  (`channels.list` -> uploads playlist -> `playlistItems.list`) and writes it
+  as the `Latest VOD` link. The lookup is best-effort: it never fails a sync,
+  a failure just omits the row.
+- The block only touches columns A/B - outside every column the Dashboard
+  aggregates over (Match ID / Result / Final Time / Data Status) - so it can
+  never skew a statistic, and `readRunsSheet` keeps it out of the record rows
+  via the `Stream` heading marker.
+- The block is repositioned on every sync (and the old rows cleared), so it
+  always sits below the last run row as runs are added.
+- The Dashboard segment is live `INDEX`/`MATCH`/`HYPERLINK` formulas over the
+  Runs block, so it follows the block automatically and needs no sync of its
+  own. Links are written with `USER_ENTERED`, so Sheets renders them as
+  clickable links.
 
 ## Stream overlay: auto-setting the run counter
 
@@ -241,7 +273,8 @@ case; `WIN/LOSS/FORFEIT/DRAW/WIN/WIN -> Run # 1,blank,blank,blank,2,3`;
 duplicate-safe double sync; manual-field preservation; completion mapping;
 timeline identifiers and split math; data-status rules; dashboard formulas
 (including the schema-derived column letters); the Runs-sheet presentation
-requests (sections, borders, freeze, conditional formatting); reset dry-run
-and confirm behaviour incl. `.env.local` preservation; retry/backoff and
-auth-error handling.
+requests (sections, borders, freeze, conditional formatting); the Stream link
+block (positioning below the last run row, clear/rewrite, marker-aware reads,
+YouTube VOD lookup, Dashboard segment); reset dry-run and confirm behaviour
+incl. `.env.local` preservation; retry/backoff and auth-error handling.
 

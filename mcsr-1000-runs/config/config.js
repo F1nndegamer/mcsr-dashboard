@@ -114,6 +114,15 @@ export const loadConfig = ({ env = process.env, rootDir = MODULE_ROOT } = {}) =>
     sheetRowCapacity: Math.max(200, parseIntOr(env.SHEET_ROW_CAPACITY, 2500)),
     dataDir,
     mcsrPrivateKey: env.MCSR_PRIVATE_KEY || "",
+    // Stream link block (Runs sheet below the last run row + Dashboard
+    // segment). Handles default to MCSR_PLAYER so the links always resolve;
+    // YOUTUBE_API_KEY is optional and enables the automatic "Latest VOD"
+    // lookup on every sync / init-sheet (see src/core/streamLinks.js).
+    stream: {
+      twitchHandle: env.TWITCH_HANDLE || env.MCSR_PLAYER || "AwenRuns",
+      youtubeHandle: env.YOUTUBE_HANDLE || env.MCSR_PLAYER || "AwenRuns",
+      youtubeApiKey: env.YOUTUBE_API_KEY || "",
+    },
     google: {
       mode: detectGoogleAuthMode(env),
       clientId: env.GOOGLE_CLIENT_ID || "",

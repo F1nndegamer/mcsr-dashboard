@@ -1,10 +1,12 @@
 import { RESULT, RUNS_SHEET } from "../models/constants.js";
 import { computeDataStatus } from "../core/dataStatus.js";
 import { assignNumbers } from "../core/numbering.js";
+import { resolveStreamLinks } from "../core/streamLinks.js";
 import { RANKED_MATCH_TYPE, planSeasons } from "../mcsr/adapter.js";
 import { normalizeMatch } from "../mcsr/normalize.js";
 import {
   buildRecordSet,
+  buildStreamBlockRows,
   planRunsUpdates,
   readRunsSheet,
   writeRunsSheet,
@@ -149,7 +151,7 @@ export const runSync = async ({
   warnings.push(...listWarnings);
 
   // --- 4. existing sheet state -------------------------------------------
-  const { dataRows, records: sheetRecords } = await readRunsSheet({
+  const { dataRows, records: sheetRecords, streamBlock } = await readRunsSheet({
     backend,
     capacity: config.sheetRowCapacity,
   });
@@ -206,10 +208,20 @@ export const runSync = async ({
   const ordered = assignNumbers(withStatus);
 
   // --- 7. write ----------------------------------------------------------
+  // Stream link block (Twitch / YouTube / auto-looked-up latest VOD) goes
+  // directly below the last run row. Best-effort: a failed VOD lookup only
+  // drops the "Latest VOD" row, it never fails the sync.
+  const streamLinks = await resolveStreamLinks({
+    stream: config.stream,
+    player: playerNickname,
+    logger,
+  });
   const plan = planRunsUpdates({
     records: ordered,
     existingRows: dataRows,
     sheetTitle: RUNS_SHEET,
+    streamRows: buildStreamBlockRows(streamLinks),
+    previousStreamBlock: streamBlock,
   });
   const writeResult = await writeRunsSheet({ backend, plan, dryRun });
 

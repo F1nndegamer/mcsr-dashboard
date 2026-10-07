@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { formatClock } from "./overlayStats";
 // The scene shell renders existing overlay pieces verbatim: the status pill
-// and the progress bar come from the self-contained base theme in
-// StreamInfoOverlay.css (imported here so a scene never depends on the stats
-// overlay component being loaded).
-import "./StreamInfoOverlay.css";
+// and the progress bar come from the base theme in StreamStatsOverlay.css
+// (imported here so a scene never depends on the stats overlay component
+// being loaded).
+import "./StreamStatsOverlay.css";
 import "./StreamSceneOverlay.css";
 
 /**
