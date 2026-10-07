@@ -51,25 +51,58 @@
    magenta 4px rule underneath. */
 
 .mcsr-scene__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 6px;
-  border-bottom: 4px solid #ff2e97;
+  padding: 16px 24px 12px;
+  background: #150c1f;
+  border: 4px solid #a855f7;
+  box-shadow: 8px 8px 0 #120a1c;
+}
+
+/* Corner ticks echo the sharp 4px border language at the header edges. */
+.mcsr-scene__header::before,
+.mcsr-scene__header::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 4px solid #ff2e97;
+}
+
+.mcsr-scene__header::before {
+  top: -4px;
+  left: -4px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.mcsr-scene__header::after {
+  bottom: -4px;
+  right: -4px;
+  border-left: none;
+  border-top: none;
 }
 
 .mcsr-scene__title {
   margin: 0;
   font-size: 24px;
   line-height: 1.25;
-  color: #ffffff;
+  /* Pixel-letterpress title: white face, dark recess, magenta crown. */
+  background: linear-gradient(180deg, #ffffff 55%, #d8b4fe 55%, #d8b4fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(2px 2px 0 #150c1f) drop-shadow(0 0 8px rgba(255, 46, 151, 0.6));
 }
 
 /* The shared pill ships hidden (display:none) for the stats strip; the
-   scenes opt it back in without touching the existing stylesheet. */
+   scenes opt it back in with the overlay's signature magenta glow. */
 .mcsr-scene__header .mcsr-overlay__status {
   display: inline-block;
+  box-shadow: 0 0 14px rgba(255, 46, 151, 0.55);
 }
 
 /* Centered scene body */
@@ -103,6 +136,9 @@
   line-height: 1.5;
   color: #d8b4fe;
   text-transform: uppercase;
+  background: #150c1f;
+  border: 2px solid #a855f7;
+  padding: 8px 16px;
 }
 
 /* Countdown uses the stat-tile treatment: #150c1f on a 4px purple border,
