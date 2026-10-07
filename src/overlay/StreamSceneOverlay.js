@@ -98,6 +98,16 @@ const StreamSceneOverlay = ({
               </span>
               <span className="mcsr-scene__countdown-value">
                 {formatClock(remaining * 1000)}
+                {isDone ? null : (
+                  <span
+                    className="mcsr-scene__countdown-dots"
+                    aria-hidden="true"
+                  >
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                )}
               </span>
             </div>
           ) : null}

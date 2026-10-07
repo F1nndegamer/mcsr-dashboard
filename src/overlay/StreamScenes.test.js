@@ -71,6 +71,13 @@ describe("scene rendering", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
+  it("shows a blinking pixel-dots loader while counting down", () => {
+    const { container } = render(<StartingSoonOverlay />);
+    // Decorative loader: assert its three pixel dots via a single scoped query.
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    expect(container.querySelectorAll(".mcsr-scene__countdown-dots i")).toHaveLength(3);
+  });
+
   it("renders the be right back scene", () => {
     render(<StreamBreakOverlay />);
     expect(screen.getByText("Be Right Back")).toBeInTheDocument();
