@@ -1,9 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MemoryBackend } from "../src/sheets/backend.js";
-import { COLUMN_INDEX } from "../src/models/runRecord.js";
+import { COLUMN_COUNT, COLUMN_INDEX } from "../src/models/runRecord.js";
 import { createBackend, ensureSheets, initializeSheets } from "../src/sheets/index.js";
 import { readRunsSheet } from "../src/sheets/runSheet.js";
+import { runsSheetCellFormatRequests } from "../src/sheets/schema.js";
 
 const config = (overrides = {}) => ({
   player: "AwenRuns",
@@ -34,6 +35,28 @@ describe("sheet setup + duplicate-safe reads", () => {
     const header = await backend.readValues("Runs!A1:Z1");
     assert.equal(header[0][0], "Run #");
     assert.equal(header[0][25], "Data Status");
+  });
+
+  it("ensureSheets applies per-column number formats to the Runs body", async () => {
+    const { backend } = await createBackend({ config: config() });
+    await ensureSheets({ backend, config: config() });
+    const formatRequests = backend.sheetRequests.filter((request) => request.repeatCell);
+    assert.ok(formatRequests.length > 0, "expected repeatCell format requests");
+    const owSplit = formatRequests.find(
+      (request) => request.repeatCell.range.startColumnIndex === COLUMN_INDEX.owSplitMs
+    );
+    assert.ok(owSplit, "expected a format request for the OW Split column");
+    assert.deepEqual(owSplit.repeatCell.cell.userEnteredFormat.numberFormat, {
+      type: "TIME",
+      pattern: "[mm]:ss.000",
+    });
+    const dateCol = formatRequests.find(
+      (request) => request.repeatCell.range.startColumnIndex === COLUMN_INDEX.dateMs
+    );
+    assert.deepEqual(dateCol.repeatCell.cell.userEnteredFormat.numberFormat, {
+      type: "DATE_TIME",
+      pattern: "yyyy-mm-dd hh:mm",
+    });
   });
 
   it("readRunsSheet skips blank rows and rows without a Match ID", async () => {
@@ -130,5 +153,36 @@ describe("sheet setup + duplicate-safe reads", () => {
     const twiceDropdowns = twice.dataValidations.filter((entry) => entry.condition === "ONE_OF_LIST");
     assert.equal(twiceDropdowns.length, 1);
     assert.equal(twiceDropdowns[0].startColumnIndex, COLUMN_INDEX.completionType);
+  });
+
+  it("runsSheetCellFormatRequests applies duration [mm]:ss.000 and date formats", () => {
+    const requests = runsSheetCellFormatRequests({ sheetId: 0, capacity: 10 });
+    assert.equal(requests.length, COLUMN_COUNT, "one format request per column");
+    // Every repeatCell targets the body (rows 1..capacity) for a single column.
+    for (const request of requests) {
+      const { repeatCell } = request;
+      assert.ok(repeatCell, "expected a repeatCell request");
+      assert.equal(repeatCell.range.startRowIndex, 1);
+      assert.equal(repeatCell.range.endRowIndex, 10);
+      assert.equal(repeatCell.range.endColumnIndex - repeatCell.range.startColumnIndex, 1);
+    }
+    const columnFor = (key) => requests[COLUMN_INDEX[key]];
+    const owSplit = columnFor("owSplitMs").repeatCell;
+    assert.equal(owSplit.range.startColumnIndex, COLUMN_INDEX.owSplitMs);
+    assert.deepEqual(owSplit.cell.userEnteredFormat.numberFormat, {
+      type: "TIME",
+      pattern: "[mm]:ss.000",
+    });
+    const dateCol = columnFor("dateMs").repeatCell;
+    assert.deepEqual(dateCol.cell.userEnteredFormat.numberFormat, {
+      type: "DATE_TIME",
+      pattern: "yyyy-mm-dd hh:mm",
+    });
+    // Int columns stay plain numbers, text columns stay unformatted.
+    assert.deepEqual(columnFor("matchId").repeatCell.cell.userEnteredFormat.numberFormat, {
+      type: "NUMBER",
+      pattern: "0",
+    });
+    assert.equal(columnFor("opponent").repeatCell.cell.userEnteredFormat.numberFormat, undefined);
   });
 });

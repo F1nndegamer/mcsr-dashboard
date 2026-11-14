@@ -136,6 +136,46 @@ const COLUMN_WIDTHS = {
  * rules are re-added. Repeated `init-sheet` runs therefore never duplicate
  * rules and never touch anything outside this sheet's conditional formats.
  */
+/**
+ * Per-column number formats + alignment for the Runs sheet body (rows 1..capacity).
+ * Durations are serialised as day fractions, so the TIME format renders them as
+ * `[mm]:ss.000`; dates are serial numbers, so DATE_TIME renders `yyyy-mm-dd hh:mm`.
+ * Pure builder - no I/O - safe to run on every sync so time cells never show raw
+ * day-fraction / serial decimals instead of formatted times.
+ */
+export const runsSheetCellFormatRequests = ({ sheetId, capacity } = {}) => {
+  const requests = [];
+  RUNS_COLUMNS.forEach((column, index) => {
+    const numberType = NUMBER_TYPES[column.type];
+    const format = {
+      horizontalAlignment: LEFT_ALIGNED.has(column.type) ? "LEFT" : "CENTER",
+      verticalAlignment: "MIDDLE",
+    };
+    const fields = [
+      "userEnteredFormat.horizontalAlignment",
+      "userEnteredFormat.verticalAlignment",
+    ];
+    if (column.numberFormat && numberType) {
+      format.numberFormat = { type: numberType, pattern: column.numberFormat };
+      fields.push("userEnteredFormat.numberFormat");
+    }
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 1,
+          endRowIndex: capacity,
+          startColumnIndex: index,
+          endColumnIndex: index + 1,
+        },
+        cell: { userEnteredFormat: format },
+        fields: fields.join(","),
+      },
+    });
+  });
+  return requests;
+};
+
 export const runsSheetSetupRequests = ({
   sheetId,
   capacity = 2500,
@@ -248,34 +288,7 @@ export const runsSheetSetupRequests = ({
   });
 
   // --- body: number formats + alignment per column --------------------------
-  RUNS_COLUMNS.forEach((column, index) => {
-    const numberType = NUMBER_TYPES[column.type];
-    const format = {
-      horizontalAlignment: LEFT_ALIGNED.has(column.type) ? "LEFT" : "CENTER",
-      verticalAlignment: "MIDDLE",
-    };
-    const fields = [
-      "userEnteredFormat.horizontalAlignment",
-      "userEnteredFormat.verticalAlignment",
-    ];
-    if (column.numberFormat && numberType) {
-      format.numberFormat = { type: numberType, pattern: column.numberFormat };
-      fields.push("userEnteredFormat.numberFormat");
-    }
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId,
-          startRowIndex: 1,
-          endRowIndex: capacity,
-          startColumnIndex: index,
-          endColumnIndex: index + 1,
-        },
-        cell: { userEnteredFormat: format },
-        fields: fields.join(","),
-      },
-    });
-  });
+  requests.push(...runsSheetCellFormatRequests({ sheetId, capacity }));
 
   // --- data validation -------------------------------------------------------
   // The Sheets API has no "clear data validation" request. `setDataValidation`

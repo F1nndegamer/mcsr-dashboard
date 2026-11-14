@@ -7,7 +7,7 @@ import { FileBackend } from "./fileBackend.js";
 import { createTokenProvider } from "./googleAuth.js";
 import { GoogleSheetsBackend } from "./googleSheets.js";
 import { buildStreamBlockRows, headerMatches, planStreamBlock, readRunsSheet } from "./runSheet.js";
-import { runsSheetSetupRequests } from "./schema.js";
+import { runsSheetCellFormatRequests, runsSheetSetupRequests } from "./schema.js";
 import { resolveStreamLinks } from "../core/streamLinks.js";
 
 /**
@@ -210,15 +210,31 @@ export const ensureSheets = async ({ backend, config, logger = console }) => {
   await backend.ensureSheet(DASHBOARD_SHEET);
 
   const existingHeader = await backend.readValues(`${RUNS_SHEET}!A1:${LAST_COLUMN_LETTER}1`);
+  let headerWritten = false;
   if (!headerMatches(existingHeader?.[0] ?? [])) {
     logger.warn?.("Runs header missing or changed; rewriting the header row.");
     await backend.batchUpdateValues({
       valueInputOption: "RAW",
       updates: [{ range: `${RUNS_SHEET}!A1:${LAST_COLUMN_LETTER}1`, values: [headerRow()] }],
     });
-    return { headerWritten: true };
+    headerWritten = true;
   }
-  return { headerWritten: false };
+
+  // Guarantee per-column number formats on every sync: durations render as
+  // [mm]:ss.000 and dates as yyyy-mm-dd hh:mm instead of raw day-fraction /
+  // serial decimals. This runs even when init-sheet has never been run or cell
+  // formats were lost. Values are never touched and the Dashboard is not affected.
+  const runsSheet = (await backend.getSheetMetadata()).find((sheet) => sheet.title === RUNS_SHEET);
+  if (runsSheet) {
+    await backend.batchUpdateSpreadsheet({
+      requests: runsSheetCellFormatRequests({
+        sheetId: runsSheet.sheetId,
+        capacity: config.sheetRowCapacity,
+      }),
+    });
+  }
+
+  return { headerWritten };
 };
 
 /** Updates the Dashboard's "Last synced" cell. Best effort - never fatal. */
