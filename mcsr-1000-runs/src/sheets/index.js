@@ -7,6 +7,7 @@ import { FileBackend } from "./fileBackend.js";
 import { createTokenProvider } from "./googleAuth.js";
 import { GoogleSheetsBackend } from "./googleSheets.js";
 import { buildStreamBlockRows, headerMatches, planStreamBlock, readRunsSheet } from "./runSheet.js";
+import { dashboardCellFormatRequests } from "./dashboardFormatting.js";
 import { runsSheetCellFormatRequests, runsSheetSetupRequests } from "./schema.js";
 import { resolveStreamLinks } from "../core/streamLinks.js";
 
@@ -220,16 +221,30 @@ export const ensureSheets = async ({ backend, config, logger = console }) => {
     headerWritten = true;
   }
 
-  // Guarantee per-column number formats on every sync: durations render as
-  // [mm]:ss.000 and dates as yyyy-mm-dd hh:mm instead of raw day-fraction /
-  // serial decimals. This runs even when init-sheet has never been run or cell
-  // formats were lost. Values are never touched and the Dashboard is not affected.
-  const runsSheet = (await backend.getSheetMetadata()).find((sheet) => sheet.title === RUNS_SHEET);
+  // Guarantee per-column number formats on every sync so time cells never show
+  // raw day-fraction / serial decimals instead of formatted times. Values are
+  // never touched; only display formats are (re)applied.
+  const metadata = await backend.getSheetMetadata();
+
+  const runsSheet = metadata.find((sheet) => sheet.title === RUNS_SHEET);
   if (runsSheet) {
     await backend.batchUpdateSpreadsheet({
       requests: runsSheetCellFormatRequests({
         sheetId: runsSheet.sheetId,
         capacity: config.sheetRowCapacity,
+      }),
+    });
+  }
+
+  // Dashboard time formats: PB / Average / Median Final Time and the chart
+  // helper columns render as [mm]:ss.000; Progress % as 0.0%.
+  const dashboardSheet = metadata.find((sheet) => sheet.title === DASHBOARD_SHEET);
+  if (dashboardSheet) {
+    const dashboard = dashboardBuild({ capacity: config.sheetRowCapacity });
+    await backend.batchUpdateSpreadsheet({
+      requests: dashboardCellFormatRequests({
+        sheetId: dashboardSheet.sheetId,
+        dashboard,
       }),
     });
   }

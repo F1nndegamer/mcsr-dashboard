@@ -1,4 +1,51 @@
 /**
+ * Pure number-format requests for the Dashboard sheet body: duration stats
+ * (PB / Average / Median Final Time) as `[mm]:ss.000` and Progress % as
+ * `0.0%`, plus the chart helper columns as `[mm]:ss.000`.
+ *
+ * Extracts only the number-format subset of `dashboardFormatRequests` so it
+ * can be reapplied on every sync without touching colours, borders or any
+ * other cell formatting the user may have customised.
+ */
+export const dashboardCellFormatRequests = ({ sheetId, dashboard }) => {
+  const requests = [];
+  const { formatRows, chartFirstRow, chartRowCapacity } = dashboard;
+
+  for (const entry of formatRows) {
+    if (entry.row === null) continue;
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: entry.row - 1,
+          endRowIndex: entry.row,
+          startColumnIndex: 1,
+          endColumnIndex: 2,
+        },
+        cell: { userEnteredFormat: { numberFormat: { type: entry.type, pattern: entry.pattern } } },
+        fields: "userEnteredFormat.numberFormat",
+      },
+    });
+  }
+
+  requests.push({
+    repeatCell: {
+      range: {
+        sheetId,
+        startRowIndex: chartFirstRow - 1,
+        endRowIndex: chartFirstRow - 1 + chartRowCapacity,
+        startColumnIndex: 1,
+        endColumnIndex: 4,
+      },
+      cell: { userEnteredFormat: { numberFormat: { type: "TIME", pattern: "[mm]:ss.000" } } },
+      fields: "userEnteredFormat.numberFormat",
+    },
+  });
+
+  return requests;
+};
+
+/**
  * Formatting requests for the Dashboard sheet.
  * Pure builder - no I/O - so it is cheap to unit test.
  *
